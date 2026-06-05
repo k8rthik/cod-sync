@@ -47,10 +47,16 @@ def compute(deck: Deck, remote: dict[str, dict[str, int]]) -> list[Change]:
 
 
 def _zone_to_dict(deck: Deck, zone_name: str) -> dict[str, int]:
+    """Sum quantities by card name — a deck can list a card under several
+    printings (multiple <card .../> lines with the same name but different
+    setShortName/uuid). Treat them as a single logical card for diff."""
     zone = deck.zone(zone_name)
     if zone is None:
         return {}
-    return {c.name: c.quantity for c in zone.cards}
+    totals: dict[str, int] = {}
+    for c in zone.cards:
+        totals[c.name] = totals.get(c.name, 0) + c.quantity
+    return totals
 
 
 def _reconcile_dfc_names(local: dict[str, int], remote: dict[str, int]) -> dict[str, int]:

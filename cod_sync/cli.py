@@ -10,10 +10,12 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
+from dataclasses import replace
 from pathlib import Path
 
-from cod_sync import cod, diff, sources
+from cod_sync import cod, diff, sources, sourcetag
 
 
 # ANSI colors
@@ -98,7 +100,22 @@ def run_sync(cod_path: str, source: str, *, yes: bool, dry_run: bool) -> int:
         print(f"error: failed to fetch {source}: {e}", file=sys.stderr)
         return 2
 
-    return _sync_one(deck, cod_path, remote, yes=yes, dry_run=dry_run)
+    _sync_one(
+        deck,
+        cod_path,
+        remote,
+        url_to_remember=source if _is_url(source) else None,
+        yes=yes,
+        dry_run=dry_run,
+    )
+    return 0
+
+
+_URL_RE = re.compile(r"^https?://", re.IGNORECASE)
+
+
+def _is_url(s: str) -> bool:
+    return bool(_URL_RE.match(s))
 
 
 def _sync_one(
@@ -106,29 +123,49 @@ def _sync_one(
     cod_path: str,
     remote: dict[str, dict[str, int]],
     *,
+    url_to_remember: str | None,
     yes: bool,
     dry_run: bool,
-) -> int:
-    """Diff → review → apply for a single deck. Returns 0 on success."""
-    changes = diff.compute(deck, remote)
-    if not changes:
-        print(f"{_DIM}No differences.{_RESET}")
-        return 0
+    indent: str = "",
+) -> str:
+    """Diff → review → apply for a single deck.
 
-    _print_summary(changes)
+    Returns one of: "no_change", "skipped", "updated".
+    """
+    changes = diff.compute(deck, remote)
+    if changes:
+        _print_summary(changes, indent=indent)
 
     if dry_run:
-        return 0
+        if not changes:
+            print(f"{indent}{_DIM}No differences.{_RESET}")
+        return "no_change"
 
-    approved = changes if yes else _review(changes)
-    if not approved:
-        print(f"{_DIM}No changes applied.{_RESET}")
-        return 0
+    approved = (changes if yes else _review(changes, indent=indent)) if changes else []
+    final_deck = _apply(deck, approved) if approved else deck
 
-    new_deck = _apply(deck, approved)
-    cod.save(new_deck, cod_path)
-    print(f"{_BOLD}Wrote {len(approved)} change(s) to {cod_path}{_RESET}")
-    return 0
+    marker_changed = False
+    if url_to_remember is not None:
+        new_comments = sourcetag.set_source_url(final_deck.comments, url_to_remember)
+        if new_comments != final_deck.comments:
+            final_deck = replace(final_deck, comments=new_comments)
+            marker_changed = True
+
+    if not approved and not marker_changed:
+        if not changes:
+            print(f"{indent}{_DIM}No differences.{_RESET}")
+            return "no_change"
+        print(f"{indent}{_DIM}No changes applied.{_RESET}")
+        return "skipped"
+
+    cod.save(final_deck, cod_path)
+    parts: list[str] = []
+    if approved:
+        parts.append(f"{len(approved)} change(s)")
+    if marker_changed:
+        parts.append("source URL")
+    print(f"{indent}{_BOLD}Wrote {' + '.join(parts)} to {cod_path}{_RESET}")
+    return "updated"
 
 
 # ----- dir mode -------------------------------------------------------------
@@ -161,18 +198,35 @@ def run_dir(directory: str, *, recursive: bool, yes: bool, dry_run: bool) -> int
         rel = path.relative_to(root) if path.is_relative_to(root) else path
         print(f"{_CYAN}{_BOLD}{header} {rel}{_RESET}  {_DIM}— {deck.deckname or '(no name)'}{_RESET}")
 
-        try:
-            source = input(f"  source URL/path (empty=skip, q=quit): ").strip()
-        except EOFError:
-            source = "q"
+        stored = sourcetag.get_source_url(deck.comments)
+        if stored:
+            print(f"  {_DIM}stored: {stored}{_RESET}")
+            prompt = "  source URL/path (empty=use stored, s=skip, q=quit): "
+        else:
+            prompt = "  source URL/path (empty=skip, q=quit): "
 
-        if not source or source.lower() == "s":
+        try:
+            entered = input(prompt).strip()
+        except EOFError:
+            entered = "q"
+
+        if entered.lower() == "q":
+            print(f"  {_DIM}quitting walk{_RESET}\n")
+            break
+        if entered.lower() == "s":
             print(f"  {_DIM}skipped{_RESET}\n")
             stats["skipped"] += 1
             continue
-        if source.lower() == "q":
-            print(f"  {_DIM}quitting walk{_RESET}\n")
-            break
+
+        if not entered:
+            if stored:
+                source = stored
+            else:
+                print(f"  {_DIM}skipped{_RESET}\n")
+                stats["skipped"] += 1
+                continue
+        else:
+            source = entered
 
         try:
             remote = sources.fetch(source)
@@ -181,29 +235,14 @@ def run_dir(directory: str, *, recursive: bool, yes: bool, dry_run: bool) -> int
             stats["errors"] += 1
             continue
 
-        changes = diff.compute(deck, remote)
-        if not changes:
-            print(f"  {_DIM}no differences{_RESET}\n")
-            stats["no_change"] += 1
-            continue
-
-        _print_summary(changes, indent="  ")
-
-        if dry_run:
-            stats["no_change"] += 1  # diff shown but nothing written
-            print()
-            continue
-
-        approved = changes if yes else _review(changes, indent="  ")
-        if not approved:
-            print(f"  {_DIM}no changes applied{_RESET}\n")
-            stats["skipped"] += 1
-            continue
-
-        new_deck = _apply(deck, approved)
-        cod.save(new_deck, str(path))
-        print(f"  {_BOLD}wrote {len(approved)} change(s){_RESET}\n")
-        stats["updated"] += 1
+        url_to_remember = source if _is_url(source) else None
+        outcome = _sync_one(
+            deck, str(path), remote,
+            url_to_remember=url_to_remember,
+            yes=yes, dry_run=dry_run, indent="  ",
+        )
+        print()
+        stats[outcome] = stats.get(outcome, 0) + 1
 
     print(
         f"{_BOLD}Done.{_RESET} "
@@ -275,7 +314,16 @@ def _review(changes: list[diff.Change], indent: str = "") -> list[diff.Change]:
 
 
 def _apply(deck: cod.Deck, changes: list[diff.Change]) -> cod.Deck:
-    """Apply changes to the deck, preserving printing pins on untouched/edited cards."""
+    """Apply changes to the deck, preserving printing pins on untouched cards.
+
+    Handles multi-printing entries (same card name listed multiple times
+    with different setShortName/uuid):
+      - remove: drop every entry with the name
+      - qty increase: bump the single entry if there's one; otherwise append
+        a new bare entry with the delta so existing printings stay intact
+      - qty decrease: reduce from the END (last-added printings first),
+        dropping entries that hit zero
+    """
     new_zones: list[cod.Zone] = list(deck.zones)
 
     by_zone: dict[str, list[diff.Change]] = {}
@@ -284,29 +332,68 @@ def _apply(deck: cod.Deck, changes: list[diff.Change]) -> cod.Deck:
 
     for zone_name, zone_changes in by_zone.items():
         zone = _get_or_create_zone(new_zones, zone_name)
-        cards = list(zone.cards)
-
-        removes = {c.name for c in zone_changes if c.kind == "remove"}
-        qty_updates = {c.name: c.remote_qty for c in zone_changes if c.kind == "qty"}
-        adds = [c for c in zone_changes if c.kind == "add"]
-
-        next_cards: list[cod.Card] = []
-        for card in cards:
-            if card.name in removes:
-                continue
-            if card.name in qty_updates:
-                next_cards.append(card.with_quantity(qty_updates[card.name]))
-            else:
-                next_cards.append(card)
-
-        for c in adds:
-            next_cards.append(cod.Card(name=c.name, quantity=c.remote_qty))
-
+        next_cards = _apply_zone(list(zone.cards), zone_changes)
         new_zone = zone.with_cards(tuple(next_cards))
         idx = next(i for i, z in enumerate(new_zones) if z.name == zone_name)
         new_zones[idx] = new_zone
 
     return deck.with_zones(tuple(new_zones))
+
+
+def _apply_zone(cards: list[cod.Card], zone_changes: list[diff.Change]) -> list[cod.Card]:
+    removes = {c.name for c in zone_changes if c.kind == "remove"}
+    qty_updates = {c.name: c.remote_qty for c in zone_changes if c.kind == "qty"}
+    adds = [c for c in zone_changes if c.kind == "add"]
+
+    indices_by_name: dict[str, list[int]] = {}
+    for i, card in enumerate(cards):
+        indices_by_name.setdefault(card.name, []).append(i)
+
+    drop: set[int] = set()
+    new_qty: dict[int, int] = {}
+    extra_appends: list[cod.Card] = []
+
+    for name in removes:
+        drop.update(indices_by_name.get(name, []))
+
+    for name, target in qty_updates.items():
+        indices = indices_by_name.get(name, [])
+        current_total = sum(cards[i].quantity for i in indices)
+        if target == current_total:
+            continue
+        if target > current_total:
+            delta = target - current_total
+            if len(indices) == 1:
+                new_qty[indices[0]] = cards[indices[0]].quantity + delta
+            else:
+                extra_appends.append(cod.Card(name=name, quantity=delta))
+        else:
+            shortfall = current_total - target
+            for i in reversed(indices):
+                if shortfall <= 0:
+                    break
+                cur = cards[i].quantity
+                if cur <= shortfall:
+                    drop.add(i)
+                    shortfall -= cur
+                else:
+                    new_qty[i] = cur - shortfall
+                    shortfall = 0
+
+    next_cards: list[cod.Card] = []
+    for i, card in enumerate(cards):
+        if i in drop:
+            continue
+        if i in new_qty:
+            next_cards.append(card.with_quantity(new_qty[i]))
+        else:
+            next_cards.append(card)
+
+    for c in adds:
+        next_cards.append(cod.Card(name=c.name, quantity=c.remote_qty))
+    next_cards.extend(extra_appends)
+
+    return next_cards
 
 
 def _get_or_create_zone(zones: list[cod.Zone], name: str) -> cod.Zone:

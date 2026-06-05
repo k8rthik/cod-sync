@@ -76,6 +76,27 @@ For each file you'll see the deckname and a prompt:
 - Empty line (or `s`) → skip this deck.
 - `q` → stop walking; previously-approved changes remain written.
 
+#### URL memory
+
+After you sync a deck against a URL once, that URL is stashed in the
+deck's `<comments>` field as a single marker line:
+
+```
+cod-sync-source: https://archidekt.com/decks/23168622
+```
+
+Next time you walk the directory, the prompt shows the remembered URL
+and an empty Enter uses it:
+
+```
+[1/15] b3_kadena.cod  — Flip The Bird
+  stored: https://archidekt.com/decks/23168622
+  source URL/path (empty=use stored, s=skip, q=quit):
+```
+
+This also works on single-file `cod-sync sync` — any URL you sync
+against is stored automatically. Text-file sources are not stored.
+
 Recurse into subfolders with `-r`:
 
 ```sh
