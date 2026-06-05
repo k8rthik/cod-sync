@@ -42,7 +42,12 @@ def main(argv: list[str] | None = None) -> int:
     _add_common_flags(sync_p)
 
     dir_p = sub.add_parser("dir", help="Walk a directory of .cod files interactively")
-    dir_p.add_argument("directory", help="Directory containing .cod files")
+    dir_p.add_argument(
+        "directory",
+        nargs="?",
+        default=".",
+        help="Directory containing .cod files (default: current directory)",
+    )
     dir_p.add_argument(
         "--recursive", "-r",
         action="store_true",
