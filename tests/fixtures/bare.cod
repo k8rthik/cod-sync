@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cockatrice_deck version="1">
+    <lastLoadedTimestamp></lastLoadedTimestamp>
+    <deckname>Flip The Bird </deckname>
+    <format></format>
+    <bannerCard providerId="">Germination Practicum</bannerCard>
+    <comments></comments>
+    <tags/>
+    <zone name="main">
+        <card number="1" name="Abhorrent Oculus"/>
+        <card number="1" name="Ainok Survivalist"/>
+        <card number="1" name="Arcane Signet"/>
+        <card number="1" name="Assassin's Trophy"/>
+        <card number="1" name="Bala Ged Recovery"/>
+        <card number="1" name="Bane of the Living"/>
+        <card number="1" name="Beast Within"/>
+        <card number="1" name="Birds of Paradise"/>
+        <card number="1" name="Branch of Vitu-Ghazi"/>
+        <card number="1" name="Breeding Pool"/>
+        <card number="1" name="Chromeshell Crab"/>
+        <card number="1" name="Command Tower"/>
+        <card number="1" name="Counterspell"/>
+        <card number="1" name="Craterhoof Behemoth"/>
+        <card number="1" name="Curator Beastie"/>
+        <card number="1" name="Cyclonic Rift"/>
+        <card number="1" name="Deathmist Raptor"/>
+        <card number="1" name="Den Protector"/>
+        <card number="1" name="Elves of Deep Shadow"/>
+        <card number="1" name="Etrata, Deadly Fugitive"/>
+        <card number="1" name="Fierce Guardianship"/>
+        <card number="1" name="Final-Word Phantom"/>
+        <card number="1" name="Finale of Devastation"/>
+        <card number="1" name="Forsaken Monument"/>
+        <card number="1" name="Gaea's Cradle"/>
+        <card number="1" name="Germination Practicum"/>
+        <card number="1" name="Gift of Doom"/>
+        <card number="1" name="Golgari Charm"/>
+        <card number="1" name="Greenbelt Radical"/>
+        <card number="1" name="Hauntwoods Shrieker"/>
+        <card number="1" name="Hedge Maze"/>
+        <card number="1" name="Heroic Intervention"/>
+        <card number="1" name="Icefeather Aven"/>
+        <card number="1" name="Ixidor, Reality Sculptor"/>
+        <card number="1" name="Kadena, Slinking Sorcerer"/>
+        <card number="1" name="Kheru Spellsnatcher"/>
+        <card number="1" name="Liberator, Urza's Battlethopter"/>
+        <card number="1" name="Mischievous Quanar"/>
+        <card number="1" name="Mistfire Weaver"/>
+        <card number="1" name="Misty Rainforest"/>
+        <card number="1" name="Muraganda Petroglyphs"/>
+        <card number="1" name="Nantuko Vigilante"/>
+        <card number="1" name="Oblivious Bookworm"/>
+        <card number="1" name="Omarthis, Ghostfire Initiate"/>
+        <card number="1" name="Orochi Soul-Reaver"/>
+        <card number="1" name="Overgrown Tomb"/>
+        <card number="1" name="Overrun"/>
+        <card number="1" name="Overwhelming Stampede"/>
+        <card number="1" name="Panoptic Projektor"/>
+        <card number="1" name="Paranormal Analyst"/>
+        <card number="1" name="Polluted Delta"/>
+        <card number="1" name="Primordial Mist"/>
+        <card number="1" name="Reliquary Tower"/>
+        <card number="1" name="Roshan, Hidden Magister"/>
+        <card number="1" name="Salt Road Ambushers"/>
+        <card number="1" name="Satoru, the Infiltrator"/>
+        <card number="1" name="Scroll of Fate"/>
+        <card number="1" name="Secret Plans"/>
+        <card number="1" name="Skittering Cicada"/>
+        <card number="9" name="Snow-Covered Forest"/>
+        <card number="7" name="Snow-Covered Island"/>
+        <card number="1" name="Snow-Covered Swamp"/>
+        <card number="1" name="Sol Ring"/>
+        <card number="1" name="Stratus Dancer"/>
+        <card number="1" name="Temur War Shaman"/>
+        <card number="1" name="They Came from the Pipes"/>
+        <card number="1" name="Thousand Winds"/>
+        <card number="1" name="Threats Around Every Corner"/>
+        <card number="1" name="Three Visits"/>
+        <card number="1" name="Trail of Mystery"/>
+        <card number="1" name="Triumph of the Hordes"/>
+        <card number="1" name="Ugin, Eye of the Storms"/>
+        <card number="1" name="Ugin, the Ineffable"/>
+        <card number="1" name="Ugin's Mastery"/>
+        <card number="1" name="Undercity Sewers"/>
+        <card number="1" name="Underground Mortuary"/>
+        <card number="1" name="Vannifar, Evolved Enigma"/>
+        <card number="1" name="Verdant Catacombs"/>
+        <card number="1" name="Vivien, Champion of the Wilds"/>
+        <card number="1" name="Watery Grave"/>
+        <card number="1" name="Whisperwood Elemental"/>
+        <card number="1" name="Willbender"/>
+        <card number="1" name="Yedora, Grave Gardener"/>
+        <card number="1" name="Zagoth Triome"/>
+        <card number="1" name="Zimone, Mystery Unraveler"/>
+        <card number="1" name="Zoetic Cavern"/>
+    </zone>
+</cockatrice_deck>
