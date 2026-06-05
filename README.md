@@ -19,49 +19,80 @@ Requires Python 3.10+. The only runtime dependency is `requests`.
 
 ## Usage
 
+Two subcommands:
+
 ```sh
-cod-sync <local.cod> <source>
+cod-sync sync <local.cod> <source>      # sync one file
+cod-sync dir  <directory> [--recursive] # walk a folder, prompt per file
 ```
 
-`<source>` is one of:
+A `<source>` is one of:
 
 - `https://www.moxfield.com/decks/<id>`
 - `https://archidekt.com/decks/<id>` (or `.../<id>/<slug>`)
 - A path to a plain-text decklist (MTGA/MTGO format; `Sideboard` header
   or `SB:` line prefix both supported)
 
-### Examples
+Both subcommands accept `--dry-run` (don't write) and `--yes` (apply
+every change without prompting).
+
+### `sync` examples
 
 Interactive review against a Moxfield deck:
 
 ```sh
-cod-sync ~/Library/Application\ Support/Cockatrice/Cockatrice/decks/b3/b3_kadena.cod \
-         https://www.moxfield.com/decks/abc123
+cod-sync sync ~/Library/Application\ Support/Cockatrice/Cockatrice/decks/b3/b3_kadena.cod \
+              https://www.moxfield.com/decks/abc123
 ```
 
-Preview the diff without writing:
+Preview only:
 
 ```sh
-cod-sync my_deck.cod https://archidekt.com/decks/12345 --dry-run
+cod-sync sync my_deck.cod https://archidekt.com/decks/12345 --dry-run
 ```
 
-Apply every change without prompting:
+Apply everything from a text file without prompting:
 
 ```sh
-cod-sync my_deck.cod list.txt --yes
+cod-sync sync my_deck.cod list.txt --yes
 ```
 
-### Interactive keys
+### `dir` examples
 
-At each change prompt:
+Walk every `.cod` in a folder, prompt for a URL per deck:
+
+```sh
+cod-sync dir ~/Library/Application\ Support/Cockatrice/Cockatrice/decks/b3
+```
+
+For each file you'll see the deckname and a prompt:
+
+```
+[1/15] b3_kadena.cod  — Flip The Bird
+  source URL/path (empty=skip, q=quit): https://archidekt.com/decks/23168622
+```
+
+- Enter a URL or text-file path → diff + interactive review.
+- Empty line (or `s`) → skip this deck.
+- `q` → stop walking; previously-approved changes remain written.
+
+Recurse into subfolders with `-r`:
+
+```sh
+cod-sync dir ~/Library/Application\ Support/Cockatrice/Cockatrice/decks -r
+```
+
+### Interactive review keys
+
+At each change prompt (in both `sync` and `dir` mode):
 
 | key | action |
 | --- | --- |
 | `y` / Enter | apply this change |
 | `n` | skip this change |
 | `a` | apply this change and everything remaining |
-| `s` | stop reviewing, write what's been approved so far |
-| `q` | quit without writing anything |
+| `s` | stop reviewing this deck, write what's been approved so far |
+| `q` | quit this deck without writing anything (dir mode: also stops the walk) |
 
 ## What it does and doesn't touch
 
