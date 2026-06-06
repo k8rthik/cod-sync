@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import re
 
+from .. import dfc
+
 # Matches:  "1 Card Name", "1x Card Name", "1 Card Name (SET) 123", "SB: 1 Card"
 # Collector number is only consumed when it follows a (SET) tag — otherwise a
 # trailing word is part of the card name (e.g. "Agatha's Soul Cauldron").
@@ -47,5 +49,6 @@ def parse(text: str) -> dict[str, dict[str, int]]:
         qty = int(m.group("qty"))
         if not name or qty <= 0:
             continue
+        name = dfc.front_face(name)
         out[zone][name] = out[zone].get(name, 0) + qty
     return out

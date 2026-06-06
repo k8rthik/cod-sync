@@ -12,6 +12,7 @@ import re
 
 import requests
 
+from .. import dfc
 from .types import RemoteDeck
 
 _API_BASE = "https://api2.moxfield.com/v3/decks/all/"
@@ -84,4 +85,5 @@ def _add(zone: dict[str, int], entry: dict) -> None:
     name = card.get("name")
     if not name:
         return
+    name = dfc.front_face(name)
     zone[name] = zone.get(name, 0) + qty

@@ -168,6 +168,36 @@ def test_uses_remote_deck_name_when_present(tmp_path, monkeypatch):
     assert deck.deckname == "Atraxa, Praetors' Voice"
 
 
+def test_dfc_imported_as_front_face_only(tmp_path, monkeypatch):
+    """End-to-end: a DFC pulled from the (mocked) source layer lands in the
+    new .cod under its front-face name, ready for Cockatrice's card DB."""
+    from cod_sync.sources import moxfield
+    payload = {
+        "name": "DFC deck",
+        "boards": {
+            "mainboard": {
+                "cards": {
+                    "id1": {
+                        "quantity": 1,
+                        "card": {"name": "Storm the Vault // Vault of Catlacan"},
+                    }
+                }
+            }
+        },
+    }
+    monkeypatch.setattr(
+        "cod_sync.cli.sources.fetch",
+        lambda _src: RemoteDeck(name="DFC deck", zones=moxfield._parse(payload)),
+    )
+
+    cod_path = tmp_path / "dfc.cod"
+    cli.run_import(str(cod_path), URL, yes=True, dry_run=False)
+
+    deck = cod.load(str(cod_path))
+    names = {c.name for c in deck.zone("main").cards}
+    assert names == {"Storm the Vault"}
+
+
 def test_falls_back_to_stem_when_remote_name_empty(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",

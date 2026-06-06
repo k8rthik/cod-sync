@@ -66,11 +66,31 @@ def test_dfc_quantity_change_works_with_short_local_name():
     assert changes[0].remote_qty == 2
 
 
-def test_dfc_new_card_keeps_full_remote_name():
-    """A brand-new DFC keeps its full name on add (no local match exists)."""
+def test_dfc_new_card_uses_front_face_only():
+    """A brand-new DFC is added under the front face name so Cockatrice's card
+    database can find it. The "// Back" portion is stripped on add."""
     deck = _deck({})
     remote = {"main": {"Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 1}, "side": {}}
     changes = diff.compute(deck, remote)
     assert len(changes) == 1
     assert changes[0].kind == "add"
-    assert changes[0].name == "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki"
+    assert changes[0].name == "Fable of the Mirror-Breaker"
+
+
+def test_dfc_matches_full_local_with_front_only_remote():
+    """Other direction: local stores the full "Front // Back" form, remote
+    only sends "Front" (the post-source-normalization shape). The diff matches
+    them as the same card and leaves the local key intact."""
+    deck = _deck({"Bala Ged Recovery // Bala Ged Sanctuary": 1})
+    remote = {"main": {"Bala Ged Recovery": 1}, "side": {}}
+    assert diff.compute(deck, remote) == []
+
+
+def test_dfc_qty_change_preserves_full_local_form():
+    deck = _deck({"Bala Ged Recovery // Bala Ged Sanctuary": 1})
+    remote = {"main": {"Bala Ged Recovery": 3}, "side": {}}
+    changes = diff.compute(deck, remote)
+    assert len(changes) == 1
+    assert changes[0].kind == "qty"
+    assert changes[0].name == "Bala Ged Recovery // Bala Ged Sanctuary"
+    assert changes[0].remote_qty == 3

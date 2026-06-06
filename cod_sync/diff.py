@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from cod_sync import dfc
 from cod_sync.cod import Deck
 
 ChangeKind = Literal["add", "remove", "qty"]
@@ -60,16 +61,34 @@ def _zone_to_dict(deck: Deck, zone_name: str) -> dict[str, int]:
 
 
 def _reconcile_dfc_names(local: dict[str, int], remote: dict[str, int]) -> dict[str, int]:
-    """Match remote DFC names against local card names that may use either the
-    full "Front // Back" form or just "Front". Cockatrice card databases vary
-    on which form they store, and the user's collection mixes both. We keep
-    the source faithful — only the *matching key* is rewritten when needed."""
+    """Pick the right card-name key for each remote entry.
+
+    The source fetchers already strip "Front // Back" down to "Front" before
+    the diff runs, but this layer stays defensive so direct callers can pass
+    raw remote dicts in either form. Four cases:
+
+      1. Remote name matches local exactly — use as-is.
+      2. Remote has "Front // Back" — reduce to "Front". This also covers the
+         case where local has "Front" (it'll match) and the new-add case where
+         no local match exists (we still want the Cockatrice-compatible front
+         face name on the new card).
+      3. Remote has "Front" and local stores the same card as "Front // Back"
+         — promote remote's key to the local full form so the diff sees them
+         as the same card.
+      4. No match available — leave the remote name untouched.
+    """
+    front_to_full = {
+        name.split(" // ", 1)[0]: name for name in local if " // " in name
+    }
     result: dict[str, int] = {}
     for remote_name, qty in remote.items():
-        matched = remote_name
-        if remote_name not in local and " // " in remote_name:
-            front = remote_name.split(" // ", 1)[0]
-            if front in local:
-                matched = front
+        if remote_name in local:
+            matched = remote_name
+        elif " // " in remote_name:
+            matched = dfc.front_face(remote_name)
+        elif remote_name in front_to_full:
+            matched = front_to_full[remote_name]
+        else:
+            matched = remote_name
         result[matched] = result.get(matched, 0) + qty
     return result

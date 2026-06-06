@@ -84,7 +84,7 @@ Maybeboards don't enter the diff at all. Cards in Moxfield's maybeboard, or in a
 
 Commanders end up in the `main` zone. That's how Cockatrice stores them for EDH, and it's where both Moxfield's `commanders` board and Archidekt's "Commander" category get routed. Companions go to `main` too. If you're syncing a Constructed deck where the companion belongs in the sideboard, you'll need to move it by hand for now.
 
-When the remote returns a card as `Front // Back` and your local file has just `Front`, the two get matched automatically. This works the other direction too. New double-faced cards are added under whatever name the source provided.
+Double-faced cards get reduced to the front face. Moxfield and Archidekt return names like `Storm the Vault // Vault of Catlacan`, but Cockatrice's card database stores those under just `Storm the Vault`. cod-sync strips the back face at the source layer so new cards land in a form Cockatrice can load. If your local file already uses the full `Front // Back` form, the diff still matches it correctly and leaves the existing key untouched.
 
 A card listed multiple times in the same zone, like nine Nazgûl entries each with their own art, is treated as one logical card by the diff. If the source has more copies than you do, cod-sync appends a new bare entry for the delta instead of bumping every printing. If it has fewer, the tool reduces from the most recently added printing first. A removal drops every entry of the card.
 

@@ -12,6 +12,7 @@ import re
 
 import requests
 
+from .. import dfc
 from .types import RemoteDeck
 
 _API_BASE = "https://archidekt.com/api/decks/"
@@ -71,6 +72,7 @@ def _parse(data: dict) -> dict[str, dict[str, int]]:
         name = _card_name(entry)
         if not name:
             continue
+        name = dfc.front_face(name)
         zone = "side" if any(c in side_categories for c in categories) else "main"
         out[zone][name] = out[zone].get(name, 0) + qty
     return out
