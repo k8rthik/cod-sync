@@ -1,6 +1,8 @@
 """Source fetchers: convert a URL or local text file to a normalized decklist.
 
-Normalized form: {"main": {card_name: qty, ...}, "side": {card_name: qty, ...}}
+Normalized form: RemoteDeck(name, zones).
+- name is the deck's title at the source ("" when unknown, e.g. text files)
+- zones is {"main": {card_name: qty, ...}, "side": {card_name: qty, ...}}
 Zone names match Cockatrice's ("main", "side").
 """
 from __future__ import annotations
@@ -10,11 +12,12 @@ import re
 from urllib.parse import urlparse
 
 from . import archidekt, moxfield, text
+from .types import RemoteDeck, Zones
 
-Decklist = dict[str, dict[str, int]]
+__all__ = ["RemoteDeck", "Zones", "fetch"]
 
 
-def fetch(source: str) -> Decklist:
+def fetch(source: str) -> RemoteDeck:
     """Dispatch based on URL host or file extension."""
     if _looks_like_url(source):
         host = (urlparse(source).hostname or "").lower()
@@ -26,7 +29,7 @@ def fetch(source: str) -> Decklist:
 
     if os.path.isfile(source):
         with open(source, encoding="utf-8") as f:
-            return text.parse(f.read())
+            return RemoteDeck(name="", zones=text.parse(f.read()))
 
     raise ValueError(f"Source is neither a known URL nor a readable file: {source!r}")
 

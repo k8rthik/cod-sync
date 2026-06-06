@@ -120,7 +120,7 @@ def run_sync(cod_path: str, source: str, *, yes: bool, dry_run: bool) -> int:
     _sync_one(
         deck,
         cod_path,
-        remote,
+        remote.zones,
         url_to_remember=source if _is_url(source) else None,
         yes=yes,
         dry_run=dry_run,
@@ -195,10 +195,10 @@ def run_import(cod_path: str, source: str, *, yes: bool, dry_run: bool) -> int:
         print(f"error: failed to fetch {source}: {e}", file=sys.stderr)
         return 2
 
-    deckname = Path(cod_path).stem
-    deck = _build_new_deck(deckname, remote)
+    deckname = remote.name or Path(cod_path).stem
+    deck = _build_new_deck(deckname, remote.zones)
 
-    changes = _import_preview_changes(remote)
+    changes = _import_preview_changes(remote.zones)
     if changes:
         _print_summary(changes)
     else:
@@ -367,7 +367,7 @@ def run_dir(directory: str, *, recursive: bool, yes: bool, dry_run: bool) -> int
 
         url_to_remember = source if _is_url(source) else None
         outcome = _sync_one(
-            deck, str(path), remote,
+            deck, str(path), remote.zones,
             url_to_remember=url_to_remember,
             yes=yes, dry_run=dry_run, indent="  ",
         )

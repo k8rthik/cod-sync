@@ -12,6 +12,8 @@ import re
 
 import requests
 
+from .types import RemoteDeck
+
 _API_BASE = "https://api2.moxfield.com/v3/decks/all/"
 _USER_AGENT = "cod-sync/0.1 (+local CLI for personal use)"
 _DECK_ID_RE = re.compile(r"/decks/([A-Za-z0-9_-]+)")
@@ -27,7 +29,7 @@ _BOARD_TO_ZONE = {
 }
 
 
-def fetch(url: str) -> dict[str, dict[str, int]]:
+def fetch(url: str) -> RemoteDeck:
     public_id = _extract_id(url)
     resp = requests.get(
         _API_BASE + public_id,
@@ -36,7 +38,12 @@ def fetch(url: str) -> dict[str, dict[str, int]]:
     )
     resp.raise_for_status()
     data = resp.json()
-    return _parse(data)
+    return RemoteDeck(name=_extract_name(data), zones=_parse(data))
+
+
+def _extract_name(data: dict) -> str:
+    raw = data.get("name") or ""
+    return raw.strip()
 
 
 def _extract_id(url: str) -> str:

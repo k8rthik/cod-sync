@@ -12,6 +12,8 @@ import re
 
 import requests
 
+from .types import RemoteDeck
+
 _API_BASE = "https://archidekt.com/api/decks/"
 _USER_AGENT = "cod-sync/0.1 (+local CLI for personal use)"
 _DECK_ID_RE = re.compile(r"/decks/(\d+)")
@@ -21,7 +23,7 @@ _DECK_ID_RE = re.compile(r"/decks/(\d+)")
 _SIDE_CATEGORIES = {"sideboard"}
 
 
-def fetch(url: str) -> dict[str, dict[str, int]]:
+def fetch(url: str) -> RemoteDeck:
     deck_id = _extract_id(url)
     resp = requests.get(
         f"{_API_BASE}{deck_id}/",
@@ -29,7 +31,13 @@ def fetch(url: str) -> dict[str, dict[str, int]]:
         timeout=20,
     )
     resp.raise_for_status()
-    return _parse(resp.json())
+    data = resp.json()
+    return RemoteDeck(name=_extract_name(data), zones=_parse(data))
+
+
+def _extract_name(data: dict) -> str:
+    raw = data.get("name") or ""
+    return raw.strip()
 
 
 def _extract_id(url: str) -> str:

@@ -6,9 +6,14 @@ import os
 import pytest
 
 from cod_sync import cli, cod, sourcetag
+from cod_sync.sources import RemoteDeck
 
 
 URL = "https://www.moxfield.com/decks/abc123"
+
+
+def _remote(zones, name=""):
+    return RemoteDeck(name=name, zones=zones)
 
 
 @pytest.fixture(autouse=True)
@@ -37,10 +42,10 @@ def test_refuses_existing_file(tmp_path, capsys, monkeypatch):
 def test_creates_deck_from_mocked_source(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
-        lambda _src: {
+        lambda _src: _remote({
             "main": {"Sol Ring": 1, "Arcane Signet": 1},
             "side": {},
-        },
+        }),
     )
 
     cod_path = tmp_path / "fresh.cod"
@@ -50,7 +55,7 @@ def test_creates_deck_from_mocked_source(tmp_path, monkeypatch):
     assert cod_path.exists()
 
     deck = cod.load(str(cod_path))
-    assert deck.deckname == "fresh"
+    assert deck.deckname == "fresh"  # falls back to filename stem when remote has no name
     main_zone = deck.zone("main")
     assert main_zone is not None
     names = {c.name: c.quantity for c in main_zone.cards}
@@ -61,10 +66,10 @@ def test_creates_deck_from_mocked_source(tmp_path, monkeypatch):
 def test_creates_side_zone_when_remote_has_sideboard(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
-        lambda _src: {
+        lambda _src: _remote({
             "main": {"Lightning Bolt": 4},
             "side": {"Pyroblast": 2},
-        },
+        }),
     )
 
     cod_path = tmp_path / "burn.cod"
@@ -80,7 +85,7 @@ def test_creates_side_zone_when_remote_has_sideboard(tmp_path, monkeypatch):
 def test_stores_source_url_in_comments(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
-        lambda _src: {"main": {"Sol Ring": 1}, "side": {}},
+        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}),
     )
 
     cod_path = tmp_path / "url-deck.cod"
@@ -95,7 +100,7 @@ def test_does_not_store_url_for_file_source(tmp_path, monkeypatch):
     text_path.write_text("4 Lightning Bolt\n", encoding="utf-8")
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
-        lambda _src: {"main": {"Lightning Bolt": 4}, "side": {}},
+        lambda _src: _remote({"main": {"Lightning Bolt": 4}, "side": {}}),
     )
 
     cod_path = tmp_path / "from-file.cod"
@@ -108,7 +113,7 @@ def test_does_not_store_url_for_file_source(tmp_path, monkeypatch):
 def test_dry_run_writes_nothing(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
-        lambda _src: {"main": {"Sol Ring": 1}, "side": {}},
+        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}),
     )
 
     cod_path = tmp_path / "dry.cod"
@@ -121,7 +126,7 @@ def test_dry_run_writes_nothing(tmp_path, monkeypatch):
 def test_empty_remote_does_not_write(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
-        lambda _src: {"main": {}, "side": {}},
+        lambda _src: _remote({"main": {}, "side": {}}),
     )
 
     cod_path = tmp_path / "empty.cod"
@@ -135,7 +140,7 @@ def test_empty_remote_does_not_write(tmp_path, monkeypatch, capsys):
 def test_prompt_no_aborts(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
-        lambda _src: {"main": {"Sol Ring": 1}, "side": {}},
+        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}),
     )
     monkeypatch.setattr("builtins.input", lambda *_a, **_k: "n")
 
@@ -144,6 +149,36 @@ def test_prompt_no_aborts(tmp_path, monkeypatch):
 
     assert rc == 0
     assert not cod_path.exists()
+
+
+def test_uses_remote_deck_name_when_present(tmp_path, monkeypatch):
+    """When the remote source has a name, prefer it over the filename stem."""
+    monkeypatch.setattr(
+        "cod_sync.cli.sources.fetch",
+        lambda _src: _remote(
+            {"main": {"Sol Ring": 1}, "side": {}},
+            name="Atraxa, Praetors' Voice",
+        ),
+    )
+
+    cod_path = tmp_path / "atraxa.cod"
+    cli.run_import(str(cod_path), URL, yes=True, dry_run=False)
+
+    deck = cod.load(str(cod_path))
+    assert deck.deckname == "Atraxa, Praetors' Voice"
+
+
+def test_falls_back_to_stem_when_remote_name_empty(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "cod_sync.cli.sources.fetch",
+        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name=""),
+    )
+
+    cod_path = tmp_path / "my-deck.cod"
+    cli.run_import(str(cod_path), URL, yes=True, dry_run=False)
+
+    deck = cod.load(str(cod_path))
+    assert deck.deckname == "my-deck"
 
 
 def test_fetch_failure_returns_error(tmp_path, monkeypatch, capsys):
