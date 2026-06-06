@@ -29,7 +29,13 @@ _BOLD = "\033[1m"
 _RESET = "\033[0m"
 
 
+_SUBCOMMANDS = {"sync", "import", "dir"}
+
+
 def main(argv: list[str] | None = None) -> int:
+    raw = list(sys.argv[1:] if argv is None else argv)
+    raw = _maybe_inject_subcommand(raw)
+
     parser = argparse.ArgumentParser(
         prog="cod-sync",
         description="Sync Cockatrice .cod decklists against Moxfield/Archidekt URLs or text files.",
@@ -66,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     _add_common_flags(dir_p)
 
-    args = parser.parse_args(argv)
+    args = parser.parse_args(raw)
 
     if args.cmd == "sync":
         return run_sync(args.cod_file, args.source, yes=args.yes, dry_run=args.dry_run)
@@ -127,6 +133,49 @@ _URL_RE = re.compile(r"^https?://", re.IGNORECASE)
 
 def _is_url(s: str) -> bool:
     return bool(_URL_RE.match(s))
+
+
+# ----- smart dispatch -------------------------------------------------------
+
+
+def _maybe_inject_subcommand(argv: list[str]) -> list[str]:
+    """Rewrite `cod-sync <name> <source>` (no subcommand) into sync or import.
+
+    Routes to `sync` if the deck file exists (trying the name verbatim, then
+    with a `.cod` suffix). Routes to `import` otherwise, ensuring the new file
+    ends in `.cod`. Anything that already starts with a known subcommand or
+    looks like a help/flag-only invocation is passed through unchanged.
+    """
+    positional_indices = [i for i, a in enumerate(argv) if not a.startswith("-")]
+    if not positional_indices:
+        return argv
+    first = positional_indices[0]
+    if argv[first] in _SUBCOMMANDS:
+        return argv
+    if len(positional_indices) < 2:
+        return argv
+
+    name = argv[first]
+    resolved = _resolve_deck_path(name)
+    new_argv = list(argv)
+    if resolved is not None:
+        new_argv[first] = resolved
+        return ["sync", *new_argv]
+    new_argv[first] = _ensure_cod_suffix(name)
+    return ["import", *new_argv]
+
+
+def _resolve_deck_path(name: str) -> str | None:
+    if os.path.exists(name):
+        return name
+    with_suffix = name if name.endswith(".cod") else name + ".cod"
+    if with_suffix != name and os.path.exists(with_suffix):
+        return with_suffix
+    return None
+
+
+def _ensure_cod_suffix(name: str) -> str:
+    return name if name.endswith(".cod") else name + ".cod"
 
 
 # ----- import mode ----------------------------------------------------------
