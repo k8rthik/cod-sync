@@ -1,73 +1,8 @@
 # cod-sync
 
-**Keep your Cockatrice decks in sync with the deckbuilder you actually use.**
+Sync your Cockatrice `.cod` decks with Moxfield or Archidekt without losing your printings.
 
-`cod-sync` is a focused command-line tool that compares a local Cockatrice
-`.cod` decklist against a deck on **Moxfield**, **Archidekt**, or any pasted
-text decklist — shows the changes in color, lets you accept them one at a
-time, and edits the file in place. Your curated printings, banner card,
-tags, comments, and formatting come through untouched.
-
-```text
-2 change(s):
-  [main]
-    + 1x Witch-king, Sky Scourge
-  [side]
-    - 1x Witch-king, Sky Scourge
-
-  [1/2] (main) + 1x Witch-king, Sky Scourge  [y/n/a=all/s=skip-rest/q=quit] y
-  [2/2] (side) - 1x Witch-king, Sky Scourge  [y/n/a=all/s=skip-rest/q=quit] y
-Wrote 2 change(s) to b3_witchking.cod
-```
-
----
-
-## Why this exists
-
-If you build decks on Moxfield or Archidekt and play them in Cockatrice,
-the two go out of sync the moment you tweak one without remembering the
-other. The usual workaround — export the online list and reimport into
-Cockatrice — wipes the printings you chose, drops the banner card, resets
-tags, and gives you back an anonymous, freshly-shuffled file.
-
-`cod-sync` does the minimum required to bring the local file up to date:
-
-- Pulls the canonical list from the deckbuilder you used.
-- Diffs it against your `.cod` and shows exactly what will change.
-- Applies only what you approve, leaving everything else alone.
-
-No printings are rewritten. No banner card is forgotten. No file is
-touched without your sign-off.
-
----
-
-## Features
-
-- **Three sources.** Moxfield URLs, Archidekt URLs, and plain-text
-  decklists (MTGA / MTGO format, with `Sideboard` headers or `SB:`
-  prefixes).
-- **Surgical edits.** Only quantity changes, additions, and removals are
-  applied. `setShortName`, `collectorNumber`, and `uuid` pins on every
-  other card are kept exactly as they were.
-- **Round-trip fidelity.** Deck name, format, banner card, comments, and
-  the file's exact indentation come out byte-for-byte identical when
-  there are no changes.
-- **Interactive review.** Walk each change with `y / n / a / s / q`
-  controls; accept all at once, stop midway, or quit without writing.
-- **Directory mode.** Walk every `.cod` in a folder (optionally
-  recursively), prompting for a source per deck.
-- **URL memory.** After the first sync, the source URL is stashed in the
-  deck's `<comments>` field, so the next walk just offers it back to you.
-- **Multi-printing safe.** Cards listed across several `<card>` lines
-  (e.g. nine Nazgûl, each its own art) are treated as one logical card
-  by the diff, and edits keep every existing pin intact.
-- **DFC-aware matching.** A local `Bala Ged Recovery` matches a remote
-  `Bala Ged Recovery // Bala Ged Sanctuary` automatically, whichever form
-  your Cockatrice card DB happens to use.
-- **No surprise writes.** `--dry-run` previews; `--yes` skips the prompts
-  but never widens the scope of edits.
-
----
+You update a deck on Moxfield. A week later you sit down to playtest in Cockatrice and the list is stale. Exporting from Moxfield and reimporting works, technically, but it strips every printing you picked and the banner card with it. cod-sync fixes this by making the smallest possible edit. It pulls the canonical list, diffs it against your `.cod`, and applies only the changes you approve. Everything else stays put.
 
 ## Install
 
@@ -77,188 +12,71 @@ cd cod-sync
 pip install -e .
 ```
 
-Requires Python 3.10+. The only runtime dependency is `requests`.
+Python 3.10 or newer. `requests` is the only runtime dependency. The CLI installs as `cod-sync`.
 
-The CLI installs as `cod-sync`.
+## Use it
 
----
-
-## Quick start
-
-Sync a single deck against a Moxfield URL:
+Two subcommands. The first syncs one file:
 
 ```sh
 cod-sync sync my_deck.cod https://www.moxfield.com/decks/abc123
 ```
 
-Walk every `.cod` in your Cockatrice decks folder:
+The second walks a folder and prompts you for a URL per deck:
 
 ```sh
 cod-sync dir ~/Library/Application\ Support/Cockatrice/Cockatrice/decks/b3
 ```
 
-Preview a diff without writing anything:
+`dir` defaults to the current directory if you don't pass one. Add `-r` to recurse into subfolders. Both subcommands take `--dry-run` to preview without writing, and `--yes` to skip the per-change prompts and accept the whole diff.
 
-```sh
-cod-sync sync my_deck.cod https://archidekt.com/decks/12345 --dry-run
-```
+When the diff appears, walk through it: `y` accepts a change, `n` skips it, `a` accepts everything remaining, `s` stops reviewing this deck and writes whatever you've approved so far, and `q` bails out without writing. In `dir` mode, `q` also stops the walk.
 
----
-
-## Commands
-
-### `cod-sync sync FILE SOURCE`
-
-Compare one `.cod` against one source.
-
-| Argument / flag | Description |
-| --- | --- |
-| `FILE` | Path to a local `.cod` file. |
-| `SOURCE` | A Moxfield URL, an Archidekt URL, or a path to a plain-text decklist. |
-| `--dry-run`, `-n` | Print the diff but don't modify the file. |
-| `--yes`, `-y` | Apply every change without prompting. |
-
-If `SOURCE` is a URL, it's recorded in the deck's `<comments>` for later
-runs (see [URL memory](#url-memory)). Text-file sources are not stored.
-
-### `cod-sync dir [DIRECTORY]`
-
-Walk every `.cod` in a folder, prompting for a source per file.
-`DIRECTORY` defaults to `.` (the current directory).
-
-| Argument / flag | Description |
-| --- | --- |
-| `DIRECTORY` | Folder to walk. Defaults to the current directory. |
-| `--recursive`, `-r` | Descend into subdirectories. |
-| `--dry-run`, `-n` | Show diffs but don't write any files. |
-| `--yes`, `-y` | Apply every approved diff without prompting per change. |
-
-For each deck the prompt shows:
-
-```text
-[1/15] b3_kadena.cod  — Flip The Bird
-  source URL/path (empty=skip, q=quit):
-```
-
-- Enter a URL or path → diff + interactive review.
-- Empty line → skip this deck (or use the stored URL — see below).
-- `s` → skip this deck.
-- `q` → stop the walk; any decks already written stay written.
-
-### Interactive review keys
-
-At each change prompt:
-
-| key | action |
-| --- | --- |
-| `y` / Enter | apply this change |
-| `n` | skip this change |
-| `a` | apply this change and everything remaining |
-| `s` | stop reviewing this deck, write what's been approved so far |
-| `q` | quit this deck without writing (in `dir` mode, also stops the walk) |
-
----
+A source can be a Moxfield URL, an Archidekt URL, or a path to a plain-text decklist in MTGA or MTGO format. `Sideboard` section headers work. So do `SB:` line prefixes.
 
 ## URL memory
 
-The first time you sync a deck against a URL, `cod-sync` writes a single
-marker line into the deck's `<comments>` field:
+The first time you sync a deck against a URL, cod-sync writes one line into the deck's `<comments>`:
 
-```text
+```
 cod-sync-source: https://archidekt.com/decks/23168622
 ```
 
-Your own comments are kept; only that one marker line is managed.
+Anything you already had in comments is left alone. Only this single line is managed by the tool.
 
-On the next `cod-sync dir` walk, decks with a stored URL prompt like
-this:
+Next time you walk the folder, decks with a stored URL prompt like this:
 
-```text
-[1/15] b3_kadena.cod  — Flip The Bird
+```
+[1/15] b3_kadena.cod  - Flip The Bird
   stored: https://archidekt.com/decks/23168622
   source URL/path (empty=use stored, s=skip, q=quit):
 ```
 
-Hit Enter to reuse it, or paste a new URL to switch sources (the new URL
-overwrites the marker). Text-file paths are deliberately not stored.
+Hit enter to use it. Paste a new URL to switch sources, which also rewrites the marker. Text-file paths aren't stored, since they usually aren't portable across machines.
 
----
+## What it changes, and what it leaves alone
 
-## What's preserved, what changes
+Quantities update. Cards you removed online have their `<card .../>` line deleted. Cards you added show up at the bottom of the right zone as bare `<card number="N" name="..."/>` entries, with no printing pinned, so you can pick the art in Cockatrice yourself.
 
-| Element | Behavior |
-| --- | --- |
-| Card quantities | Updated to match the source. |
-| Removed cards | Their `<card .../>` lines are deleted. |
-| Added cards | Appended as bare `<card number="N" name="..."/>` lines so you can pick the printing in Cockatrice. |
-| `setShortName` / `collectorNumber` / `uuid` on existing cards | Never altered when only quantity changes. |
-| Banner card | Untouched. |
-| Deck name, format | Untouched. |
-| Tags element | Untouched. |
-| Comments | Untouched, except for the single `cod-sync-source:` marker line. |
-| Indentation, attribute order, XML formatting | Identical to what Cockatrice writes. |
+Pins on cards you didn't change (`setShortName`, `collectorNumber`, `uuid`) are never rewritten. Same goes for the banner card, the deckname, the format, your tags, and any comment text outside the marker line. The file's indentation and attribute order match what Cockatrice writes natively. A no-op sync produces a byte-identical file, unless the URL marker is being written for the first time.
 
-When the local and remote agree, the file is not rewritten — a
-no-op run leaves mtime untouched (unless the source URL marker is new).
+## A few things worth knowing
 
----
+Maybeboards don't enter the diff at all. Cards in Moxfield's maybeboard, or in an Archidekt category flagged `includedInDeck: false`, are filtered out before comparison.
 
-## Behaviour worth knowing
+Commanders end up in the `main` zone. That's how Cockatrice stores them for EDH, and it's where both Moxfield's `commanders` board and Archidekt's "Commander" category get routed. Companions go to `main` too. If you're syncing a Constructed deck where the companion belongs in the sideboard, you'll need to move it by hand for now.
 
-- **Maybeboards are dropped.** Cards in Moxfield's maybeboard or in an
-  Archidekt category with `includedInDeck: false` are ignored entirely.
-- **Commanders go to `main`.** Cockatrice stores EDH commanders inside
-  the `main` zone; that's where they're routed from both Moxfield's
-  `commanders` board and Archidekt's "Commander" category.
-- **Companions go to `main` too** (suitable for EDH; if you sync
-  Constructed decks where the companion belongs in the sideboard, you'll
-  need to move it manually for now).
-- **DFC / split / adventure names.** When the remote returns a card as
-  `Front // Back` and your local file has just `Front`, the two are
-  matched automatically. New cards are added using whatever full name
-  the source provided.
-- **Multi-printing cards.** A card listed under multiple printings is
-  treated as one logical card by the diff. Quantity increases append a
-  bare delta entry rather than touching your printings; decreases
-  reduce from the most recently added printing first; removes drop
-  every entry of the card.
+When the remote returns a card as `Front // Back` and your local file has just `Front`, the two get matched automatically. This works the other direction too. New double-faced cards are added under whatever name the source provided.
 
----
+A card listed multiple times in the same zone, like nine Nazgûl entries each with their own art, is treated as one logical card by the diff. If the source has more copies than you do, cod-sync appends a new bare entry for the delta instead of bumping every printing. If it has fewer, the tool reduces from the most recently added printing first. A removal drops every entry of the card.
 
 ## Sources
 
-### Moxfield
+**Moxfield.** URLs like `https://www.moxfield.com/decks/<id>`. Reads from the public v3 API at `api2.moxfield.com`. Public decks only; no login needed.
 
-URLs like `https://www.moxfield.com/decks/<id>`. Uses the public v3 API
-(`api2.moxfield.com/v3/decks/all/<id>`). No login or token needed for
-public decks.
+**Archidekt.** URLs like `https://archidekt.com/decks/<id>`, optionally with a trailing slug. Reads from `archidekt.com/api/decks/<id>/`.
 
-### Archidekt
-
-URLs like `https://archidekt.com/decks/<id>` or
-`https://archidekt.com/decks/<id>/<slug>`. Uses the documented
-`archidekt.com/api/decks/<id>/` endpoint.
-
-### Plain-text decklists
-
-Any local file in MTGA or MTGO export format:
-
-```text
-Deck
-1 Sol Ring
-9 Snow-Covered Forest
-1 Sol Ring (CMM) 423
-
-Sideboard
-1 Pithing Needle
-```
-
-`Deck`, `Mainboard`, `Commander`, `Sideboard`, and `Side` headers all
-work; so does the MTGO-style `SB:` prefix. Lines starting with `//` or
-`#` are treated as comments. Set codes and collector numbers in
-parentheses are stripped.
-
----
+**Plain text.** Any local file in MTGA or MTGO export format. Recognized section headers include `Deck`, `Mainboard`, `Commander`, `Sideboard`, and `Side`. The MTGO `SB:` line prefix works too. Lines starting with `//` or `#` are treated as comments. Anything in parentheses after a card name (set code, collector number) is ignored.
 
 ## Development
 
@@ -267,28 +85,10 @@ pip install -e .
 pytest -q
 ```
 
-The codebase is intentionally small:
+The codebase is small enough to read in one sitting. `cli.py` holds the CLI, the directory walk, and the interactive review. `cod.py` is the format-preserving parser and writer. `diff.py` computes the per-zone change list and handles DFC name matching. `sourcetag.py` manages the URL marker in `<comments>`. Each source lives in its own file under `sources/`. Tests sit next to the code and cover round-trip fidelity, diffing, multi-printing edits, and URL stash behavior.
 
-```text
-cod_sync/
-  cli.py            # argparse + interactive review + dir walk
-  cod.py            # .cod parser and format-preserving writer
-  diff.py           # zone-level diff with DFC reconciliation
-  sourcetag.py      # URL marker stored in <comments>
-  sources/
-    moxfield.py
-    archidekt.py
-    text.py
-tests/              # unit + round-trip + multi-printing coverage
-```
-
-Pull requests welcome; please add a test alongside any behavior change.
-
----
+Pull requests welcome. If you change behavior, add a test for it.
 
 ## Status
 
-Early but used daily on the maintainer's own deck folder. The diff,
-apply, and round-trip paths have test coverage; the Moxfield and
-Archidekt fetchers are best-effort against their current public APIs and
-may need updates if those change.
+Built for the maintainer's own deck folder and used daily. The Moxfield and Archidekt fetchers ride on those sites' current public APIs and may need patches if they change.
