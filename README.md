@@ -4,6 +4,8 @@ Sync your Cockatrice `.cod` decks with Moxfield or Archidekt without losing your
 
 You update a deck on Moxfield. A week later you sit down to playtest in Cockatrice and the list is stale. Exporting from Moxfield and reimporting works, technically, but it strips every printing you picked and the banner card with it. cod-sync fixes this by making the smallest possible edit. It pulls the canonical list, diffs it against your `.cod`, and applies only the changes you approve. Everything else stays put.
 
+When the local file doesn't exist yet, cod-sync can also create it from the same URL, naming the deck whatever Moxfield or Archidekt called it.
+
 ## Install
 
 ```sh
@@ -16,23 +18,39 @@ Python 3.10 or newer. `requests` is the only runtime dependency. The CLI install
 
 ## Use it
 
-Two subcommands. The first syncs one file:
+Three subcommands. `sync` edits an existing deck:
 
 ```sh
 cod-sync sync my_deck.cod https://www.moxfield.com/decks/abc123
 ```
 
-The second walks a folder and prompts you for a URL per deck:
+`import` creates a new one from scratch:
+
+```sh
+cod-sync import new_deck.cod https://www.moxfield.com/decks/abc123
+```
+
+`dir` walks a folder and prompts you for a URL per deck:
 
 ```sh
 cod-sync dir ~/Library/Application\ Support/Cockatrice/Cockatrice/decks/b3
 ```
 
-`dir` defaults to the current directory if you don't pass one. Add `-r` to recurse into subfolders. Both subcommands take `--dry-run` to preview without writing, and `--yes` to skip the per-change prompts and accept the whole diff.
+You can usually skip the subcommand. Run `cod-sync my_deck https://moxfield.com/decks/abc` and the tool dispatches to `sync` if `my_deck.cod` already exists, or `import` if it doesn't. The `.cod` extension is appended for you when you leave it off.
+
+`dir` defaults to the current directory if you don't pass one. Add `-r` to recurse into subfolders. Every subcommand takes `--dry-run` to preview without writing, and `--yes` to skip the per-change prompts.
 
 When the diff appears, walk through it: `y` accepts a change, `n` skips it, `a` accepts everything remaining, `s` stops reviewing this deck and writes whatever you've approved so far, and `q` bails out without writing. In `dir` mode, `q` also stops the walk.
 
 A source can be a Moxfield URL, an Archidekt URL, or a path to a plain-text decklist in MTGA or MTGO format. `Sideboard` section headers work. So do `SB:` line prefixes.
+
+## Importing a new deck
+
+`import` refuses to overwrite an existing file. If the path is taken, run `sync` instead. Otherwise it pulls the remote, shows you what's about to be written, and asks once before creating the file. `--dry-run` skips the write entirely and `--yes` skips the prompt.
+
+The new deck's title comes from the source. Moxfield and Archidekt both expose a deck name in their API, and that lands in `<deckname>` so Cockatrice shows it the way the source named it. A plain-text source has no title, so the filename stem is used instead.
+
+The URL marker behaves the same as in `sync`: it's stashed in `<comments>` so re-syncing later doesn't require typing the URL again.
 
 ## URL memory
 
@@ -85,7 +103,7 @@ pip install -e .
 pytest -q
 ```
 
-The codebase is small enough to read in one sitting. `cli.py` holds the CLI, the directory walk, and the interactive review. `cod.py` is the format-preserving parser and writer. `diff.py` computes the per-zone change list and handles DFC name matching. `sourcetag.py` manages the URL marker in `<comments>`. Each source lives in its own file under `sources/`. Tests sit next to the code and cover round-trip fidelity, diffing, multi-printing edits, and URL stash behavior.
+The codebase is small enough to read in one sitting. `cli.py` holds the CLI, the directory walk, the interactive review, and the smart-dispatch layer that picks `sync` or `import` when you skip the subcommand. `cod.py` is the format-preserving parser and writer. `diff.py` computes the per-zone change list and handles DFC name matching. `sourcetag.py` manages the URL marker in `<comments>`. Each source lives in its own file under `sources/`, with the shared `RemoteDeck` type in `sources/types.py`. Tests sit next to the code and cover round-trip fidelity, diffing, multi-printing edits, URL stash behavior, import, and smart dispatch.
 
 Pull requests welcome. If you change behavior, add a test for it.
 
