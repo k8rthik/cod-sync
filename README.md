@@ -18,39 +18,39 @@ Python 3.10 or newer. `requests` is the only runtime dependency. The CLI install
 
 ## Use it
 
-Three subcommands. `sync` edits an existing deck:
+No subcommands. cod-sync takes one positional argument and decides what to do based on what you passed.
 
 ```sh
-cod-sync sync my_deck.cod https://www.moxfield.com/decks/abc123
+cod-sync                                          # walk the current folder
+cod-sync ~/decks -r                               # walk a folder, recursing into subfolders
+cod-sync foo.cod https://moxfield.com/decks/abc   # sync foo.cod against a URL
+cod-sync foo.cod                                  # sync against whatever URL is stored inside foo.cod
+cod-sync https://moxfield.com/decks/abc           # create a new deck in cwd, named after the remote
 ```
 
-`import` creates a new one from scratch:
+Rules behind the dispatch:
 
-```sh
-cod-sync import new_deck.cod https://www.moxfield.com/decks/abc123
-```
+A URL as the first argument creates a fresh deck. The filename comes from the remote's title, lowercased with spaces turned into underscores, written into the current directory. If the target name is already taken, cod-sync stops and tells you.
 
-`dir` walks a folder and prompts you for a URL per deck:
+A directory as the first argument walks every `.cod` in it and prompts you per deck. Add `-r` to descend into subfolders.
 
-```sh
-cod-sync dir ~/Library/Application\ Support/Cockatrice/Cockatrice/decks/b3
-```
+A file as the first argument syncs that file. If you pass a URL too, the URL wins. If you don't, cod-sync uses whatever URL was stashed in the deck on its last sync. With no URL passed and none stored, you get an error.
 
-You can usually skip the subcommand. Run `cod-sync my_deck https://moxfield.com/decks/abc` and the tool dispatches to `sync` if `my_deck.cod` already exists, or `import` if it doesn't. The `.cod` extension is appended for you when you leave it off.
+A bare deck name without the extension is fine: `cod-sync mydeck` is the same as `cod-sync mydeck.cod`.
 
-`dir` defaults to the current directory if you don't pass one. Add `-r` to recurse into subfolders. Every subcommand takes `--dry-run` to preview without writing, and `--yes` to skip the per-change prompts.
+`--dry-run` (`-n`) prints the diff and writes nothing. `--yes` (`-y`) auto-accepts every prompt — per-card review, "create new deck?", "update stored URL?", "update deckname?", all of them.
 
-When the diff appears, walk through it: `y` accepts a change, `n` skips it, `a` accepts everything remaining, `s` stops reviewing this deck and writes whatever you've approved so far, and `q` bails out without writing. In `dir` mode, `q` also stops the walk.
+Two combinations are rejected with a clear error: a directory plus a URL (no way to fan a single URL out across decks), and two URLs (only one source per deck).
+
+When the diff appears for an existing deck, walk through it card by card: `y` accepts, `n` skips, `a` accepts everything left, `s` stops reviewing and writes whatever's approved so far, `q` bails out without writing. When you create a new deck from a URL you get a single confirmation instead — declining cancels the whole creation.
 
 A source can be a Moxfield URL, an Archidekt URL, or a path to a plain-text decklist in MTGA or MTGO format. `Sideboard` section headers work. So do `SB:` line prefixes.
 
-## Importing a new deck
+## Deckname and URL drift
 
-`import` refuses to overwrite an existing file. If the path is taken, run `sync` instead. Otherwise it pulls the remote, shows you what's about to be written, and asks once before creating the file. `--dry-run` skips the write entirely and `--yes` skips the prompt.
+When you sync an existing deck against a URL that differs from the one stored in its comments, cod-sync stops and asks before overwriting the marker. Same when the remote's deck title differs from your local `<deckname>`. Default is to keep the local value, so a stray prompt won't accidentally rename your deck. `-y` auto-accepts both prompts.
 
-The new deck's title comes from the source. Moxfield and Archidekt both expose a deck name in their API, and that lands in `<deckname>` so Cockatrice shows it the way the source named it. A plain-text source has no title, so the filename stem is used instead.
-
-The URL marker behaves the same as in `sync`: it's stashed in `<comments>` so re-syncing later doesn't require typing the URL again.
+For brand-new decks (file didn't exist), both fields get populated from the remote without asking — there's nothing local to overwrite.
 
 ## URL memory
 
@@ -103,7 +103,7 @@ pip install -e .
 pytest -q
 ```
 
-The codebase is small enough to read in one sitting. `cli.py` holds the CLI, the directory walk, the interactive review, and the smart-dispatch layer that picks `sync` or `import` when you skip the subcommand. `cod.py` is the format-preserving parser and writer. `diff.py` computes the per-zone change list and handles DFC name matching. `sourcetag.py` manages the URL marker in `<comments>`. Each source lives in its own file under `sources/`, with the shared `RemoteDeck` type in `sources/types.py`. Tests sit next to the code and cover round-trip fidelity, diffing, multi-printing edits, URL stash behavior, import, and smart dispatch.
+The codebase is small enough to read in one sitting. `cli.py` holds the positional dispatcher, the directory walk, the unified per-file sync, and the bare-URL flow. `cod.py` is the format-preserving parser and writer. `diff.py` computes the per-zone change list and handles DFC name matching. `sourcetag.py` manages the URL marker in `<comments>`. Each source lives in its own file under `sources/`, with the shared `RemoteDeck` type in `sources/types.py`. Tests sit next to the code and cover round-trip fidelity, diffing, multi-printing edits, URL stash behavior, DFC normalization, the dispatcher, single-file sync, and bare-URL creation.
 
 Pull requests welcome. If you change behavior, add a test for it.
 

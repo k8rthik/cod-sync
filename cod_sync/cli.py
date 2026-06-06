@@ -1,11 +1,17 @@
 """Interactive CLI.
 
-Three subcommands:
+Usage:
 
-  cod-sync sync   FILE SOURCE     diff one .cod against one URL/text file
-  cod-sync import FILE SOURCE     create a new .cod from a URL/text file
-  cod-sync dir    DIRECTORY       walk every .cod in a directory, prompting
-                                  for a source per file
+  cod-sync                              walk the current directory
+  cod-sync DIR [-r]                     walk a directory (optionally recursive)
+  cod-sync FILE URL                     sync FILE against URL (creates FILE if absent)
+  cod-sync FILE                         sync FILE against the URL stored in its comments
+  cod-sync URL                          create a new deck in cwd, named after the remote
+
+Flags:
+  -y / --yes        accept all prompts non-interactively
+  -n / --dry-run    show changes but write nothing
+  -r / --recursive  recurse into subdirectories (only valid with a directory target)
 """
 from __future__ import annotations
 
@@ -29,103 +35,82 @@ _BOLD = "\033[1m"
 _RESET = "\033[0m"
 
 
-_SUBCOMMANDS = {"sync", "import", "dir"}
-
-
 def main(argv: list[str] | None = None) -> int:
-    raw = list(sys.argv[1:] if argv is None else argv)
-    raw = _maybe_inject_subcommand(raw)
-
     parser = argparse.ArgumentParser(
         prog="cod-sync",
-        description="Sync Cockatrice .cod decklists against Moxfield/Archidekt URLs or text files.",
+        description=(
+            "Sync Cockatrice .cod decklists against Moxfield/Archidekt URLs or text "
+            "files. Pass a directory to walk it, a deck file to sync it, or a URL "
+            "to create a new deck from."
+        ),
     )
-    sub = parser.add_subparsers(dest="cmd", required=True)
+    parser.add_argument("target", nargs="?", default=None,
+                        help="A directory, a deck file, or a URL")
+    parser.add_argument("url", nargs="?", default=None,
+                        help="Remote URL or path to a plain-text decklist")
+    parser.add_argument("--recursive", "-r", action="store_true",
+                        help="Recurse into subdirectories (directory targets only)")
+    parser.add_argument("--yes", "-y", action="store_true",
+                        help="Apply all changes without prompting")
+    parser.add_argument("--dry-run", "-n", action="store_true",
+                        help="Print changes and do not modify any file")
+    args = parser.parse_args(argv)
 
-    sync_p = sub.add_parser("sync", help="Sync a single .cod file")
-    sync_p.add_argument("cod_file", help="Path to the local .cod file")
-    sync_p.add_argument(
-        "source",
-        help="Remote URL (moxfield.com, archidekt.com) or path to a plain-text decklist",
+    return _route(
+        args.target,
+        args.url,
+        recursive=args.recursive,
+        yes=args.yes,
+        dry_run=args.dry_run,
     )
-    _add_common_flags(sync_p)
 
-    import_p = sub.add_parser("import", help="Create a new .cod from a remote decklist")
-    import_p.add_argument("cod_file", help="Path for the new .cod file (must not already exist)")
-    import_p.add_argument(
-        "source",
-        help="Remote URL (moxfield.com, archidekt.com) or path to a plain-text decklist",
-    )
-    _add_common_flags(import_p)
 
-    dir_p = sub.add_parser("dir", help="Walk a directory of .cod files interactively")
-    dir_p.add_argument(
-        "directory",
-        nargs="?",
-        default=".",
-        help="Directory containing .cod files (default: current directory)",
-    )
-    dir_p.add_argument(
-        "--recursive", "-r",
-        action="store_true",
-        help="Recurse into subdirectories",
-    )
-    _add_common_flags(dir_p)
+# ----- routing --------------------------------------------------------------
 
-    args = parser.parse_args(raw)
 
-    if args.cmd == "sync":
-        return run_sync(args.cod_file, args.source, yes=args.yes, dry_run=args.dry_run)
-    if args.cmd == "import":
-        return run_import(args.cod_file, args.source, yes=args.yes, dry_run=args.dry_run)
-    if args.cmd == "dir":
-        return run_dir(
-            args.directory,
-            recursive=args.recursive,
-            yes=args.yes,
-            dry_run=args.dry_run,
+def _route(target: str | None, url: str | None, *,
+           recursive: bool, yes: bool, dry_run: bool) -> int:
+    """Classify TARGET and dispatch."""
+    if target is None and url is None:
+        return _walk_directory(".", recursive=recursive, yes=yes, dry_run=dry_run)
+
+    # Bare URL given as the only arg (argparse binds it to `target`).
+    if target is not None and _is_url(target):
+        if url is not None:
+            print(
+                "error: two URLs given. Pass a file path or directory as the first argument.",
+                file=sys.stderr,
+            )
+            return 2
+        return _create_from_bare_url(target, yes=yes, dry_run=dry_run)
+
+    # Defensive: argparse won't actually produce (None, URL); cover it anyway.
+    if target is None and url is not None:
+        return _create_from_bare_url(url, yes=yes, dry_run=dry_run)
+
+    # Directory target.
+    if os.path.isdir(target):
+        if url is not None:
+            print(
+                f"error: can't sync a directory against a single URL. "
+                f"Pass a deck file, or omit the URL to walk {target!r} interactively.",
+                file=sys.stderr,
+            )
+            return 2
+        return _walk_directory(target, recursive=recursive, yes=yes, dry_run=dry_run)
+
+    # Otherwise: file path. Resolve `foo` → `foo.cod` if present, else treat as new.
+    resolved = _resolve_deck_path(target)
+    cod_path = resolved if resolved is not None else _ensure_cod_suffix(target)
+
+    if resolved is None and url is None:
+        print(
+            f"error: {cod_path} doesn't exist and no URL was provided.",
+            file=sys.stderr,
         )
-    return 2
-
-
-def _add_common_flags(p: argparse.ArgumentParser) -> None:
-    p.add_argument(
-        "--yes", "-y",
-        action="store_true",
-        help="Apply all changes without prompting",
-    )
-    p.add_argument(
-        "--dry-run", "-n",
-        action="store_true",
-        help="Print the diff and do not modify any file",
-    )
-
-
-# ----- sync mode ------------------------------------------------------------
-
-
-def run_sync(cod_path: str, source: str, *, yes: bool, dry_run: bool) -> int:
-    try:
-        deck = cod.load(cod_path)
-    except (OSError, ValueError) as e:
-        print(f"error: failed to load {cod_path}: {e}", file=sys.stderr)
         return 2
 
-    try:
-        remote = sources.fetch(source)
-    except Exception as e:
-        print(f"error: failed to fetch {source}: {e}", file=sys.stderr)
-        return 2
-
-    _sync_one(
-        deck,
-        cod_path,
-        remote.zones,
-        url_to_remember=source if _is_url(source) else None,
-        yes=yes,
-        dry_run=dry_run,
-    )
-    return 0
+    return _sync_file(cod_path, url, yes=yes, dry_run=dry_run)
 
 
 _URL_RE = re.compile(r"^https?://", re.IGNORECASE)
@@ -133,36 +118,6 @@ _URL_RE = re.compile(r"^https?://", re.IGNORECASE)
 
 def _is_url(s: str) -> bool:
     return bool(_URL_RE.match(s))
-
-
-# ----- smart dispatch -------------------------------------------------------
-
-
-def _maybe_inject_subcommand(argv: list[str]) -> list[str]:
-    """Rewrite `cod-sync <name> <source>` (no subcommand) into sync or import.
-
-    Routes to `sync` if the deck file exists (trying the name verbatim, then
-    with a `.cod` suffix). Routes to `import` otherwise, ensuring the new file
-    ends in `.cod`. Anything that already starts with a known subcommand or
-    looks like a help/flag-only invocation is passed through unchanged.
-    """
-    positional_indices = [i for i, a in enumerate(argv) if not a.startswith("-")]
-    if not positional_indices:
-        return argv
-    first = positional_indices[0]
-    if argv[first] in _SUBCOMMANDS:
-        return argv
-    if len(positional_indices) < 2:
-        return argv
-
-    name = argv[first]
-    resolved = _resolve_deck_path(name)
-    new_argv = list(argv)
-    if resolved is not None:
-        new_argv[first] = resolved
-        return ["sync", *new_argv]
-    new_argv[first] = _ensure_cod_suffix(name)
-    return ["import", *new_argv]
 
 
 def _resolve_deck_path(name: str) -> str | None:
@@ -178,130 +133,167 @@ def _ensure_cod_suffix(name: str) -> str:
     return name if name.endswith(".cod") else name + ".cod"
 
 
-# ----- import mode ----------------------------------------------------------
+# ----- single-file sync (unified sync + import) -----------------------------
 
 
-def run_import(cod_path: str, source: str, *, yes: bool, dry_run: bool) -> int:
-    if os.path.exists(cod_path):
+def _sync_file(cod_path: str, url: str | None, *, yes: bool, dry_run: bool) -> int:
+    exists = os.path.exists(cod_path)
+
+    if exists:
+        try:
+            deck = cod.load(cod_path)
+        except (OSError, ValueError) as e:
+            print(f"error: failed to load {cod_path}: {e}", file=sys.stderr)
+            return 2
+    else:
+        deck = cod.Deck()
+
+    if url is None:
+        url = sourcetag.get_source_url(deck.comments)
+        if url is None:
+            print(
+                f"error: no source URL passed and none stored in {cod_path}. "
+                f"Provide one: `cod-sync {cod_path} <URL>`.",
+                file=sys.stderr,
+            )
+            return 2
+        print(f"{_DIM}using stored URL: {url}{_RESET}")
+
+    try:
+        remote = sources.fetch(url)
+    except Exception as e:
+        print(f"error: failed to fetch {url}: {e}", file=sys.stderr)
+        return 2
+
+    if exists:
+        changes = diff.compute(deck, remote.zones)
+    else:
+        changes = _import_preview_changes(remote.zones)
+
+    if changes:
+        _print_summary(changes)
+
+    if dry_run:
+        if not changes:
+            print(f"{_DIM}No differences.{_RESET}")
+        return 0
+
+    if not exists:
+        if not changes:
+            print(f"{_DIM}Remote source is empty. Nothing to create.{_RESET}")
+            return 0
+        if not yes:
+            try:
+                ans = input(f"Create {cod_path} with {len(changes)} card(s)? [Y/n] ").strip().lower()
+            except EOFError:
+                ans = "n"
+            if ans not in ("", "y", "yes"):
+                print(f"{_DIM}Aborted.{_RESET}")
+                return 0
+        approved = changes
+    else:
+        approved = (changes if yes else _review(changes)) if changes else []
+
+    final_deck = _apply(deck, approved) if approved else deck
+
+    deckname_changed = False
+    if not exists:
+        new_deckname = remote.name or Path(cod_path).stem
+        if new_deckname != final_deck.deckname:
+            final_deck = replace(final_deck, deckname=new_deckname)
+            deckname_changed = True
+    elif remote.name and remote.name != final_deck.deckname:
+        if _confirm(
+            f"Local name:  {final_deck.deckname or '(none)'}\n"
+            f"Remote name: {remote.name}\n"
+            f"Update deckname?",
+            default=False, auto_yes=yes,
+        ):
+            final_deck = replace(final_deck, deckname=remote.name)
+            deckname_changed = True
+
+    marker_changed = False
+    if _is_url(url):
+        stored = sourcetag.get_source_url(final_deck.comments)
+        if stored is None or stored == url:
+            update = True
+        else:
+            update = _confirm(
+                f"Stored URL: {stored}\n"
+                f"New URL:    {url}\n"
+                f"Update stored URL?",
+                default=False, auto_yes=yes,
+            )
+        if update:
+            new_comments = sourcetag.set_source_url(final_deck.comments, url)
+            if new_comments != final_deck.comments:
+                final_deck = replace(final_deck, comments=new_comments)
+                marker_changed = True
+
+    if exists and not approved and not marker_changed and not deckname_changed:
+        if not changes:
+            print(f"{_DIM}No differences.{_RESET}")
+        else:
+            print(f"{_DIM}No changes applied.{_RESET}")
+        return 0
+
+    cod.save(final_deck, cod_path)
+
+    if not exists:
+        print(f"{_BOLD}Wrote new deck to {cod_path}{_RESET}")
+    else:
+        parts: list[str] = []
+        if approved:
+            parts.append(f"{len(approved)} change(s)")
+        if marker_changed:
+            parts.append("source URL")
+        if deckname_changed:
+            parts.append("deckname")
+        print(f"{_BOLD}Wrote {' + '.join(parts)} to {cod_path}{_RESET}")
+    return 0
+
+
+# ----- bare URL → new deck in cwd -------------------------------------------
+
+
+def _create_from_bare_url(url: str, *, yes: bool, dry_run: bool) -> int:
+    try:
+        remote = sources.fetch(url)
+    except Exception as e:
+        print(f"error: failed to fetch {url}: {e}", file=sys.stderr)
+        return 2
+
+    name = _sanitize_filename(remote.name) or "imported_deck"
+    target = Path.cwd() / f"{name}.cod"
+    if target.exists():
         print(
-            f"error: {cod_path} already exists. Use `cod-sync sync` to update it.",
+            f"error: target {target} already exists. "
+            f"Move it or pass an explicit filename: `cod-sync <path> {url}`.",
             file=sys.stderr,
         )
         return 2
 
-    try:
-        remote = sources.fetch(source)
-    except Exception as e:
-        print(f"error: failed to fetch {source}: {e}", file=sys.stderr)
-        return 2
-
-    deckname = remote.name or Path(cod_path).stem
-    deck = _build_new_deck(deckname, remote.zones)
-
-    changes = _import_preview_changes(remote.zones)
-    if changes:
-        _print_summary(changes)
-    else:
-        print(f"{_DIM}Remote source is empty.{_RESET}")
-        return 0
-
-    if dry_run:
-        return 0
-
-    if not yes:
-        try:
-            ans = input(f"Create {cod_path}? [Y/n] ").strip().lower()
-        except EOFError:
-            ans = "n"
-        if ans not in ("", "y", "yes"):
-            print(f"{_DIM}Aborted.{_RESET}")
-            return 0
-
-    if _is_url(source):
-        deck = replace(deck, comments=sourcetag.set_source_url(deck.comments, source))
-
-    cod.save(deck, cod_path)
-    print(f"{_BOLD}Wrote new deck to {cod_path}{_RESET}")
-    return 0
+    return _sync_file(str(target), url, yes=yes, dry_run=dry_run)
 
 
-def _build_new_deck(deckname: str, remote: dict[str, dict[str, int]]) -> cod.Deck:
-    zones: list[cod.Zone] = []
-    for zone_name in ("main", "side"):
-        entries = remote.get(zone_name, {})
-        if not entries:
-            continue
-        cards = tuple(
-            cod.Card(name=name, quantity=qty)
-            for name, qty in sorted(entries.items(), key=lambda kv: kv[0].lower())
-        )
-        zones.append(cod.Zone(name=zone_name, cards=cards))
-    return cod.Deck(deckname=deckname, zones=tuple(zones))
+def _sanitize_filename(title: str) -> str:
+    """Lowercase, whitespace → underscore, keep [a-z0-9_-], drop the rest."""
+    out: list[str] = []
+    for ch in title.lower():
+        if ch.isspace():
+            out.append("_")
+        elif "a" <= ch <= "z" or "0" <= ch <= "9" or ch in "_-":
+            out.append(ch)
+    s = "".join(out)
+    while "__" in s:
+        s = s.replace("__", "_")
+    return s.strip("_-")
 
 
-def _import_preview_changes(remote: dict[str, dict[str, int]]) -> list[diff.Change]:
-    changes: list[diff.Change] = []
-    for zone_name in ("main", "side"):
-        entries = remote.get(zone_name, {})
-        for name in sorted(entries, key=str.lower):
-            changes.append(diff.Change("add", zone_name, name, 0, entries[name]))
-    return changes
+# ----- directory walk -------------------------------------------------------
 
 
-def _sync_one(
-    deck: cod.Deck,
-    cod_path: str,
-    remote: dict[str, dict[str, int]],
-    *,
-    url_to_remember: str | None,
-    yes: bool,
-    dry_run: bool,
-    indent: str = "",
-) -> str:
-    """Diff → review → apply for a single deck.
-
-    Returns one of: "no_change", "skipped", "updated".
-    """
-    changes = diff.compute(deck, remote)
-    if changes:
-        _print_summary(changes, indent=indent)
-
-    if dry_run:
-        if not changes:
-            print(f"{indent}{_DIM}No differences.{_RESET}")
-        return "no_change"
-
-    approved = (changes if yes else _review(changes, indent=indent)) if changes else []
-    final_deck = _apply(deck, approved) if approved else deck
-
-    marker_changed = False
-    if url_to_remember is not None:
-        new_comments = sourcetag.set_source_url(final_deck.comments, url_to_remember)
-        if new_comments != final_deck.comments:
-            final_deck = replace(final_deck, comments=new_comments)
-            marker_changed = True
-
-    if not approved and not marker_changed:
-        if not changes:
-            print(f"{indent}{_DIM}No differences.{_RESET}")
-            return "no_change"
-        print(f"{indent}{_DIM}No changes applied.{_RESET}")
-        return "skipped"
-
-    cod.save(final_deck, cod_path)
-    parts: list[str] = []
-    if approved:
-        parts.append(f"{len(approved)} change(s)")
-    if marker_changed:
-        parts.append("source URL")
-    print(f"{indent}{_BOLD}Wrote {' + '.join(parts)} to {cod_path}{_RESET}")
-    return "updated"
-
-
-# ----- dir mode -------------------------------------------------------------
-
-
-def run_dir(directory: str, *, recursive: bool, yes: bool, dry_run: bool) -> int:
+def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool) -> int:
     root = Path(directory)
     if not root.is_dir():
         print(f"error: not a directory: {directory}", file=sys.stderr)
@@ -389,7 +381,75 @@ def _find_cod_files(root: Path, *, recursive: bool) -> list[Path]:
     return sorted(p for p in root.glob(pattern) if p.is_file())
 
 
-# ----- shared helpers -------------------------------------------------------
+# ----- per-file flow used inside the walk -----------------------------------
+
+
+def _sync_one(
+    deck: cod.Deck,
+    cod_path: str,
+    remote: dict[str, dict[str, int]],
+    *,
+    url_to_remember: str | None,
+    yes: bool,
+    dry_run: bool,
+    indent: str = "",
+) -> str:
+    """Diff → review → apply for a single deck inside the walk.
+
+    Returns one of: "no_change", "skipped", "updated".
+    """
+    changes = diff.compute(deck, remote)
+    if changes:
+        _print_summary(changes, indent=indent)
+
+    if dry_run:
+        if not changes:
+            print(f"{indent}{_DIM}No differences.{_RESET}")
+        return "no_change"
+
+    approved = (changes if yes else _review(changes, indent=indent)) if changes else []
+    final_deck = _apply(deck, approved) if approved else deck
+
+    marker_changed = False
+    if url_to_remember is not None:
+        new_comments = sourcetag.set_source_url(final_deck.comments, url_to_remember)
+        if new_comments != final_deck.comments:
+            final_deck = replace(final_deck, comments=new_comments)
+            marker_changed = True
+
+    if not approved and not marker_changed:
+        if not changes:
+            print(f"{indent}{_DIM}No differences.{_RESET}")
+            return "no_change"
+        print(f"{indent}{_DIM}No changes applied.{_RESET}")
+        return "skipped"
+
+    cod.save(final_deck, cod_path)
+    parts: list[str] = []
+    if approved:
+        parts.append(f"{len(approved)} change(s)")
+    if marker_changed:
+        parts.append("source URL")
+    print(f"{indent}{_BOLD}Wrote {' + '.join(parts)} to {cod_path}{_RESET}")
+    return "updated"
+
+
+# ----- UI helpers -----------------------------------------------------------
+
+
+def _confirm(prompt: str, *, default: bool, auto_yes: bool) -> bool:
+    if auto_yes:
+        return True
+    suffix = " [Y/n] " if default else " [y/N] "
+    try:
+        ans = input(prompt + suffix).strip().lower()
+    except EOFError:
+        return default
+    if ans in ("y", "yes"):
+        return True
+    if ans in ("n", "no"):
+        return False
+    return default
 
 
 def _color(change: diff.Change) -> str:
@@ -441,6 +501,32 @@ def _review(changes: list[diff.Change], indent: str = "") -> list[diff.Change]:
                 return []
             print(f"{indent}    please answer y, n, a, s, or q")
     return approved
+
+
+# ----- deck construction and change application ----------------------------
+
+
+def _build_new_deck(deckname: str, remote: dict[str, dict[str, int]]) -> cod.Deck:
+    zones: list[cod.Zone] = []
+    for zone_name in ("main", "side"):
+        entries = remote.get(zone_name, {})
+        if not entries:
+            continue
+        cards = tuple(
+            cod.Card(name=name, quantity=qty)
+            for name, qty in sorted(entries.items(), key=lambda kv: kv[0].lower())
+        )
+        zones.append(cod.Zone(name=zone_name, cards=cards))
+    return cod.Deck(deckname=deckname, zones=tuple(zones))
+
+
+def _import_preview_changes(remote: dict[str, dict[str, int]]) -> list[diff.Change]:
+    changes: list[diff.Change] = []
+    for zone_name in ("main", "side"):
+        entries = remote.get(zone_name, {})
+        for name in sorted(entries, key=str.lower):
+            changes.append(diff.Change("add", zone_name, name, 0, entries[name]))
+    return changes
 
 
 def _apply(deck: cod.Deck, changes: list[diff.Change]) -> cod.Deck:
