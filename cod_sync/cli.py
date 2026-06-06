@@ -1,9 +1,10 @@
 """Interactive CLI.
 
-Two subcommands:
+Three subcommands:
 
-  cod-sync sync FILE SOURCE       diff one .cod against one URL/text file
-  cod-sync dir  DIRECTORY         walk every .cod in a directory, prompting
+  cod-sync sync   FILE SOURCE     diff one .cod against one URL/text file
+  cod-sync import FILE SOURCE     create a new .cod from a URL/text file
+  cod-sync dir    DIRECTORY       walk every .cod in a directory, prompting
                                   for a source per file
 """
 from __future__ import annotations
@@ -43,6 +44,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     _add_common_flags(sync_p)
 
+    import_p = sub.add_parser("import", help="Create a new .cod from a remote decklist")
+    import_p.add_argument("cod_file", help="Path for the new .cod file (must not already exist)")
+    import_p.add_argument(
+        "source",
+        help="Remote URL (moxfield.com, archidekt.com) or path to a plain-text decklist",
+    )
+    _add_common_flags(import_p)
+
     dir_p = sub.add_parser("dir", help="Walk a directory of .cod files interactively")
     dir_p.add_argument(
         "directory",
@@ -61,6 +70,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "sync":
         return run_sync(args.cod_file, args.source, yes=args.yes, dry_run=args.dry_run)
+    if args.cmd == "import":
+        return run_import(args.cod_file, args.source, yes=args.yes, dry_run=args.dry_run)
     if args.cmd == "dir":
         return run_dir(
             args.directory,
@@ -116,6 +127,76 @@ _URL_RE = re.compile(r"^https?://", re.IGNORECASE)
 
 def _is_url(s: str) -> bool:
     return bool(_URL_RE.match(s))
+
+
+# ----- import mode ----------------------------------------------------------
+
+
+def run_import(cod_path: str, source: str, *, yes: bool, dry_run: bool) -> int:
+    if os.path.exists(cod_path):
+        print(
+            f"error: {cod_path} already exists. Use `cod-sync sync` to update it.",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        remote = sources.fetch(source)
+    except Exception as e:
+        print(f"error: failed to fetch {source}: {e}", file=sys.stderr)
+        return 2
+
+    deckname = Path(cod_path).stem
+    deck = _build_new_deck(deckname, remote)
+
+    changes = _import_preview_changes(remote)
+    if changes:
+        _print_summary(changes)
+    else:
+        print(f"{_DIM}Remote source is empty.{_RESET}")
+        return 0
+
+    if dry_run:
+        return 0
+
+    if not yes:
+        try:
+            ans = input(f"Create {cod_path}? [Y/n] ").strip().lower()
+        except EOFError:
+            ans = "n"
+        if ans not in ("", "y", "yes"):
+            print(f"{_DIM}Aborted.{_RESET}")
+            return 0
+
+    if _is_url(source):
+        deck = replace(deck, comments=sourcetag.set_source_url(deck.comments, source))
+
+    cod.save(deck, cod_path)
+    print(f"{_BOLD}Wrote new deck to {cod_path}{_RESET}")
+    return 0
+
+
+def _build_new_deck(deckname: str, remote: dict[str, dict[str, int]]) -> cod.Deck:
+    zones: list[cod.Zone] = []
+    for zone_name in ("main", "side"):
+        entries = remote.get(zone_name, {})
+        if not entries:
+            continue
+        cards = tuple(
+            cod.Card(name=name, quantity=qty)
+            for name, qty in sorted(entries.items(), key=lambda kv: kv[0].lower())
+        )
+        zones.append(cod.Zone(name=zone_name, cards=cards))
+    return cod.Deck(deckname=deckname, zones=tuple(zones))
+
+
+def _import_preview_changes(remote: dict[str, dict[str, int]]) -> list[diff.Change]:
+    changes: list[diff.Change] = []
+    for zone_name in ("main", "side"):
+        entries = remote.get(zone_name, {})
+        for name in sorted(entries, key=str.lower):
+            changes.append(diff.Change("add", zone_name, name, 0, entries[name]))
+    return changes
 
 
 def _sync_one(
