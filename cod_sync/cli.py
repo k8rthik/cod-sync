@@ -7,11 +7,13 @@ Usage:
   cod-sync FILE URL                     sync FILE against URL (creates FILE if absent)
   cod-sync FILE                         sync FILE against the URL stored in its comments
   cod-sync URL                          create a new deck in cwd, named after the remote
+  cod-sync FILE --info                  print deck contents and structural metrics
 
 Flags:
   -y / --yes        accept all prompts non-interactively
   -n / --dry-run    show changes but write nothing
   -r / --recursive  recurse into subdirectories (only valid with a directory target)
+  -i / --info       show the deck's contents and metrics instead of syncing
 """
 from __future__ import annotations
 
@@ -54,6 +56,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="Apply all changes without prompting")
     parser.add_argument("--dry-run", "-n", action="store_true",
                         help="Print changes and do not modify any file")
+    parser.add_argument("--info", "-i", action="store_true",
+                        help="Print the deck's contents and metrics instead of syncing")
     args = parser.parse_args(argv)
 
     return _route(
@@ -62,6 +66,7 @@ def main(argv: list[str] | None = None) -> int:
         recursive=args.recursive,
         yes=args.yes,
         dry_run=args.dry_run,
+        info=args.info,
     )
 
 
@@ -69,8 +74,11 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _route(target: str | None, url: str | None, *,
-           recursive: bool, yes: bool, dry_run: bool) -> int:
+           recursive: bool, yes: bool, dry_run: bool, info: bool) -> int:
     """Classify TARGET and dispatch."""
+    if info:
+        return _route_info(target, url)
+
     if target is None and url is None:
         return _walk_directory(".", recursive=recursive, yes=yes, dry_run=dry_run)
 
@@ -111,6 +119,30 @@ def _route(target: str | None, url: str | None, *,
         return 2
 
     return _sync_file(cod_path, url, yes=yes, dry_run=dry_run)
+
+
+def _route_info(target: str | None, url: str | None) -> int:
+    """Dispatch for --info. Requires a file target, refuses URL/dir."""
+    if target is None:
+        print("error: --info needs a deck file. Usage: cod-sync FILE --info",
+              file=sys.stderr)
+        return 2
+    if url is not None:
+        print("error: --info doesn't take a URL.", file=sys.stderr)
+        return 2
+    if _is_url(target):
+        print("error: --info needs a local deck file, not a URL.", file=sys.stderr)
+        return 2
+    if os.path.isdir(target):
+        print(f"error: --info needs a deck file, not a directory ({target}).",
+              file=sys.stderr)
+        return 2
+
+    resolved = _resolve_deck_path(target)
+    if resolved is None:
+        print(f"error: deck file not found: {target}", file=sys.stderr)
+        return 2
+    return _show_info(resolved)
 
 
 _URL_RE = re.compile(r"^https?://", re.IGNORECASE)
@@ -288,6 +320,56 @@ def _sanitize_filename(title: str) -> str:
     while "__" in s:
         s = s.replace("__", "_")
     return s.strip("_-")
+
+
+# ----- info -----------------------------------------------------------------
+
+
+def _show_info(cod_path: str) -> int:
+    try:
+        deck = cod.load(cod_path)
+    except (OSError, ValueError) as e:
+        print(f"error: failed to load {cod_path}: {e}", file=sys.stderr)
+        return 2
+
+    stored_url = sourcetag.get_source_url(deck.comments)
+
+    title = deck.deckname or "(unnamed deck)"
+    print(f"{_BOLD}{title}{_RESET}  {_DIM}{cod_path}{_RESET}")
+    print(_DIM + "─" * max(40, len(title) + len(cod_path) + 2) + _RESET)
+    print(f"  {_DIM}format:{_RESET} {deck.format or '(unset)'}")
+    print(f"  {_DIM}source:{_RESET} {stored_url or '(none stored)'}")
+    if deck.banner_card_name:
+        print(f"  {_DIM}banner:{_RESET} {deck.banner_card_name}")
+    print()
+
+    grand_total = 0
+    for zone_name in ("main", "side"):
+        zone = deck.zone(zone_name)
+        if zone is None or not zone.cards:
+            continue
+        totals: dict[str, int] = {}
+        pinned = 0
+        for card in zone.cards:
+            totals[card.name] = totals.get(card.name, 0) + card.quantity
+            if card.set_short_name or card.collector_number or card.uuid:
+                pinned += card.quantity
+        zone_total = sum(totals.values())
+        grand_total += zone_total
+        print(
+            f"  {_CYAN}{_BOLD}[{zone_name}]{_RESET} "
+            f"{zone_total} cards · {len(totals)} unique · {pinned} pinned"
+        )
+        max_qty_width = len(str(max(totals.values())))
+        for name in sorted(totals, key=str.lower):
+            print(f"    {totals[name]:>{max_qty_width}} {name}")
+        print()
+
+    if grand_total == 0:
+        print(f"  {_DIM}(empty deck){_RESET}")
+        print()
+    print(f"  {_BOLD}total:{_RESET} {grand_total} cards")
+    return 0
 
 
 # ----- directory walk -------------------------------------------------------

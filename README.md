@@ -22,10 +22,11 @@ No subcommands. cod-sync takes one positional argument and decides what to do ba
 
 ```sh
 cod-sync                                          # walk the current folder
-cod-sync ~/decks -r                               # walk a folder, recursing into subfolders
+cod-sync ~/decks --recursive                      # walk a folder, recursing into subfolders
 cod-sync foo.cod https://moxfield.com/decks/abc   # sync foo.cod against a URL
 cod-sync foo.cod                                  # sync against whatever URL is stored inside foo.cod
 cod-sync https://moxfield.com/decks/abc           # create a new deck in cwd, named after the remote
+cod-sync foo.cod --info                           # print the deck's contents and metrics
 ```
 
 Rules behind the dispatch:
@@ -38,7 +39,9 @@ A file as the first argument syncs that file. If you pass a URL too, the URL win
 
 A bare deck name without the extension is fine: `cod-sync mydeck` is the same as `cod-sync mydeck.cod`.
 
-`--dry-run` (`-n`) prints the diff and writes nothing. `--yes` (`-y`) auto-accepts every prompt — per-card review, "create new deck?", "update stored URL?", "update deckname?", all of them.
+`--dry-run` (`-n`) prints the diff and writes nothing. `--yes` (`-y`) auto-accepts every prompt — per-card review, "create new deck?", "update stored URL?", "update deckname?", all of them. `--recursive` (`-r`) only does anything when the target is a directory.
+
+`--info` (`-i`) is the read-only escape hatch. Pointed at a deck file, it prints the deckname, format, banner card, stored source URL, a per-zone listing (card name plus rolled-up quantity), and counts for total / unique / pinned. Nothing is fetched, nothing is written. It refuses to run against a URL or a directory.
 
 Two combinations are rejected with a clear error: a directory plus a URL (no way to fan a single URL out across decks), and two URLs (only one source per deck).
 
