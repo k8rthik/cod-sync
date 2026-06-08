@@ -39,7 +39,7 @@ A file as the first argument syncs that file. If you pass a URL too, the URL win
 
 A bare deck name without the extension is fine: `cod-sync mydeck` is the same as `cod-sync mydeck.cod`.
 
-`--dry-run` (`-n`) prints the diff and writes nothing. `--yes` (`-y`) auto-accepts every prompt — per-card review, "create new deck?", "update stored URL?", "update deckname?", all of them. `--recursive` (`-r`) only does anything when the target is a directory.
+`--dry-run` (`-n`) prints the diff and writes nothing. `--yes` (`-y`) auto-accepts every prompt: per-card review, "create new deck?", "update stored URL?", "update deckname?", and the walk's "sync against stored URL?". A directory walk under `-y` runs hands-free when every deck has a stored URL. `--recursive` (`-r`) only does anything when the target is a directory.
 
 `--info` (`-i`) is the read-only escape hatch. Pointed at a deck file, it prints the deckname, format, banner card, stored source URL, a per-zone listing (card name plus rolled-up quantity), and counts for total / unique / pinned. Nothing is fetched, nothing is written. It refuses to run against a URL or a directory.
 
@@ -51,7 +51,7 @@ A source can be a Moxfield URL, an Archidekt URL, or a path to a plain-text deck
 
 ## Deckname and URL drift
 
-When you sync an existing deck against a URL that differs from the one stored in its comments, cod-sync stops and asks before overwriting the marker. Same when the remote's deck title differs from your local `<deckname>`. Default is to keep the local value, so a stray prompt won't accidentally rename your deck. `-y` auto-accepts both prompts.
+When you sync an existing deck against a URL that differs from the one stored in its comments, cod-sync stops and asks before overwriting the marker. Same when the remote's deck title differs from your local `<deckname>`. Default is to keep the local value, so a stray prompt won't accidentally rename your deck. `-y` auto-accepts both prompts. Names that differ only in capitalization or surrounding whitespace are treated as identical, so `"Flip The Bird"` vs `"Flip the Bird"` won't trigger anything.
 
 For brand-new decks (file didn't exist), both fields get populated from the remote without asking — there's nothing local to overwrite.
 
@@ -70,10 +70,18 @@ Next time you walk the folder, decks with a stored URL prompt like this:
 ```
 [1/15] b3_kadena.cod  - Flip The Bird
   stored: https://archidekt.com/decks/23168622
-  source URL/path (empty=use stored, s=skip, q=quit):
+  Sync against stored URL? [Y/n/q]:
 ```
 
-Hit enter to use it. Paste a new URL to switch sources, which also rewrites the marker. Text-file paths aren't stored, since they usually aren't portable across machines.
+Hit enter (or `y`) to sync. `n` skips this deck. `q` exits the walk. With `-y` the prompt is suppressed and every stored URL is accepted, so `cod-sync ~/decks -y` runs the whole folder hands-free.
+
+To sync this deck against a different URL just once, exit the walk and run `cod-sync foo.cod <new URL>`. That path also asks before overwriting the stored marker. Text-file paths aren't stored, since they usually aren't portable across machines.
+
+Decks without a stored URL still ask for a source:
+
+```
+  source URL/path (empty=skip, q=quit):
+```
 
 ## What it changes, and what it leaves alone
 

@@ -234,7 +234,7 @@ def _sync_file(cod_path: str, url: str | None, *, yes: bool, dry_run: bool) -> i
         if new_deckname != final_deck.deckname:
             final_deck = replace(final_deck, deckname=new_deckname)
             deckname_changed = True
-    elif remote.name and remote.name != final_deck.deckname:
+    elif remote.name and _names_differ(remote.name, final_deck.deckname):
         if _confirm(
             f"Local name:  {final_deck.deckname or '(none)'}\n"
             f"Remote name: {remote.name}\n"
@@ -403,33 +403,30 @@ def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool
         print(f"{_CYAN}{_BOLD}{header} {rel}{_RESET}  {_DIM}— {deck.deckname or '(no name)'}{_RESET}")
 
         stored = sourcetag.get_source_url(deck.comments)
+        source: str | None
         if stored:
             print(f"  {_DIM}stored: {stored}{_RESET}")
-            prompt = "  source URL/path (empty=use stored, s=skip, q=quit): "
-        else:
-            prompt = "  source URL/path (empty=skip, q=quit): "
-
-        try:
-            entered = input(prompt).strip()
-        except EOFError:
-            entered = "q"
-
-        if entered.lower() == "q":
-            print(f"  {_DIM}quitting walk{_RESET}\n")
-            break
-        if entered.lower() == "s":
-            print(f"  {_DIM}skipped{_RESET}\n")
-            stats["skipped"] += 1
-            continue
-
-        if not entered:
-            if stored:
-                source = stored
-            else:
+            decision = _ask_walk_stored(auto_yes=yes)
+            if decision == "quit":
+                print(f"  {_DIM}quitting walk{_RESET}\n")
+                break
+            if decision == "skip":
                 print(f"  {_DIM}skipped{_RESET}\n")
                 stats["skipped"] += 1
                 continue
+            source = stored
         else:
+            try:
+                entered = input("  source URL/path (empty=skip, q=quit): ").strip()
+            except EOFError:
+                entered = "q"
+            if entered.lower() == "q":
+                print(f"  {_DIM}quitting walk{_RESET}\n")
+                break
+            if not entered or entered.lower() == "s":
+                print(f"  {_DIM}skipped{_RESET}\n")
+                stats["skipped"] += 1
+                continue
             source = entered
 
         try:
@@ -517,6 +514,36 @@ def _sync_one(
 
 
 # ----- UI helpers -----------------------------------------------------------
+
+
+def _ask_walk_stored(*, auto_yes: bool) -> str:
+    """Tri-state prompt used in the dir walk when a stored URL is present.
+
+    Returns "accept", "skip", or "quit". Under --yes, returns "accept" without
+    consuming any input.
+    """
+    if auto_yes:
+        return "accept"
+    while True:
+        try:
+            ans = input("  Sync against stored URL? [Y/n/q]: ").strip().lower()
+        except EOFError:
+            return "quit"
+        if ans in ("", "y", "yes"):
+            return "accept"
+        if ans in ("n", "no"):
+            return "skip"
+        if ans in ("q", "quit"):
+            return "quit"
+        print("    please answer y, n, or q")
+
+
+def _names_differ(a: str, b: str | None) -> bool:
+    """True when two display names are meaningfully different.
+
+    Casing and surrounding whitespace are treated as equivalent.
+    """
+    return (a or "").strip().casefold() != (b or "").strip().casefold()
 
 
 def _confirm(prompt: str, *, default: bool, auto_yes: bool) -> bool:

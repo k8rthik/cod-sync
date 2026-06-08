@@ -360,6 +360,63 @@ def test_existing_file_yes_flag_auto_updates_deckname(tmp_path, monkeypatch):
     assert cod.load(str(cod_path)).deckname == "Remote Name"
 
 
+def test_existing_file_remote_name_casing_only_diff_no_prompt(tmp_path, monkeypatch):
+    cod_path = tmp_path / "casing.cod"
+    _write_deck(cod_path, deckname="Flip The Bird", comments=f"cod-sync-source: {URL}",
+                main={"Sol Ring": 1})
+
+    monkeypatch.setattr(
+        "cod_sync.cli.sources.fetch",
+        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="Flip the Bird"),
+    )
+    confirm_calls: list = []
+    monkeypatch.setattr(
+        "cod_sync.cli._confirm",
+        lambda *a, **kw: confirm_calls.append((a, kw)) or False,
+    )
+
+    cli._sync_file(str(cod_path), URL, yes=False, dry_run=False)
+
+    assert confirm_calls == []
+    assert cod.load(str(cod_path)).deckname == "Flip The Bird"
+
+
+def test_existing_file_remote_name_whitespace_only_diff_no_prompt(tmp_path, monkeypatch):
+    cod_path = tmp_path / "ws.cod"
+    _write_deck(cod_path, deckname="Flip the Bird", comments=f"cod-sync-source: {URL}",
+                main={"Sol Ring": 1})
+
+    monkeypatch.setattr(
+        "cod_sync.cli.sources.fetch",
+        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="  Flip the Bird "),
+    )
+    confirm_calls: list = []
+    monkeypatch.setattr(
+        "cod_sync.cli._confirm",
+        lambda *a, **kw: confirm_calls.append((a, kw)) or False,
+    )
+
+    cli._sync_file(str(cod_path), URL, yes=False, dry_run=False)
+
+    assert confirm_calls == []
+    assert cod.load(str(cod_path)).deckname == "Flip the Bird"
+
+
+def test_existing_file_remote_name_casing_only_diff_under_yes_keeps_local(tmp_path, monkeypatch):
+    cod_path = tmp_path / "casing-yes.cod"
+    _write_deck(cod_path, deckname="Flip The Bird", comments=f"cod-sync-source: {URL}",
+                main={"Sol Ring": 1})
+
+    monkeypatch.setattr(
+        "cod_sync.cli.sources.fetch",
+        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="Flip the Bird"),
+    )
+
+    cli._sync_file(str(cod_path), URL, yes=True, dry_run=False)
+
+    assert cod.load(str(cod_path)).deckname == "Flip The Bird"
+
+
 def test_existing_file_dry_run_writes_nothing(tmp_path, monkeypatch):
     cod_path = tmp_path / "dry-existing.cod"
     _write_deck(cod_path, deckname="X", comments=f"cod-sync-source: {URL}",
