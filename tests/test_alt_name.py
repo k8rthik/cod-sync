@@ -114,6 +114,51 @@ def test_scryfall_resolves_new_reskin(tmp_path, monkeypatch):
     assert cached == {"Brand New Reskin": "Older Card"}
 
 
+def test_scryfall_dfc_canonical_is_stripped_to_front_face(tmp_path, monkeypatch):
+    """Scryfall returns DFC canonicals as "Front // Back"; Cockatrice's card
+    database keys on the front face only, so the alt_name layer must strip
+    the back face before the name reaches the .cod or the disk cache."""
+    _allow_network(monkeypatch)
+    monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
+
+    monkeypatch.setattr(
+        "cod_sync.alt_name._scryfall_batch_lookup",
+        lambda _n: {"Dowsing Dagger": "Dowsing Dagger // Lost Vale of Pahz"},
+    )
+
+    out = alt_name.canonicalize_batch(["Dowsing Dagger"])
+    assert out == {"Dowsing Dagger": "Dowsing Dagger"}
+
+    cached = json.loads((tmp_path / "cod-sync" / "alt_names.json").read_text())
+    assert cached == {"Dowsing Dagger": "Dowsing Dagger"}
+
+
+def test_canonicalize_single_strips_dfc_back_face(tmp_path, monkeypatch):
+    """Same guarantee for the single-name path."""
+    _allow_network(monkeypatch)
+    monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        "cod_sync.alt_name._scryfall_batch_lookup",
+        lambda _n: {"Dowsing Dagger": "Dowsing Dagger // Lost Vale of Pahz"},
+    )
+
+    assert alt_name.canonicalize("Dowsing Dagger") == "Dowsing Dagger"
+
+
+def test_stale_disk_cache_with_dfc_full_form_is_sanitized(tmp_path, monkeypatch):
+    """Users who picked up bad "Front // Back" entries before the fix get
+    healed on the next sync — output is stripped even if the cache is dirty."""
+    cache_path = tmp_path / "cod-sync" / "alt_names.json"
+    cache_path.parent.mkdir(parents=True)
+    cache_path.write_text(
+        json.dumps({"Dowsing Dagger": "Dowsing Dagger // Lost Vale of Pahz"})
+    )
+    monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
+
+    out = alt_name.canonicalize_batch(["Dowsing Dagger"])
+    assert out == {"Dowsing Dagger": "Dowsing Dagger"}
+
+
 def test_scryfall_404_caches_identity(tmp_path, monkeypatch):
     """Even when Scryfall returns nothing, cache the identity so we don't
     re-query the same unknown card on every sync."""

@@ -6,7 +6,8 @@ Usage:
   cod-sync DIR [-r]                     walk a directory (optionally recursive)
   cod-sync FILE URL                     sync FILE against URL (creates FILE if absent)
   cod-sync FILE                         sync FILE against the URL stored in its comments
-  cod-sync URL                          create a new deck in cwd, named after the remote
+  cod-sync URL                          sync the default-named .cod in cwd against URL,
+                                          creating it if absent (name comes from the remote)
   cod-sync FILE --info                  print deck contents and structural metrics
 
 Flags:
@@ -96,6 +97,8 @@ def _route(target: str | None, url: str | None, *,
     # Defensive: argparse won't actually produce (None, URL); cover it anyway.
     if target is None and url is not None:
         return _create_from_bare_url(url, yes=yes, dry_run=dry_run)
+
+    assert target is not None  # narrowed by the four returning branches above
 
     # Directory target.
     if os.path.isdir(target):
@@ -353,12 +356,7 @@ def _create_from_bare_url(url: str, *, yes: bool, dry_run: bool) -> int:
     name = _sanitize_filename(remote.name) or "imported_deck"
     target = Path.cwd() / f"{name}.cod"
     if target.exists():
-        print(
-            f"error: target {target} already exists. "
-            f"Move it or pass an explicit filename: `cod-sync <path> {url}`.",
-            file=sys.stderr,
-        )
-        return 2
+        print(f"{_DIM}syncing existing {target}{_RESET}")
 
     return _sync_file(str(target), url, yes=yes, dry_run=dry_run)
 

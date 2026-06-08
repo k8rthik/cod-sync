@@ -35,7 +35,7 @@ from typing import Iterable
 
 import requests
 
-from . import _seed_data
+from . import _seed_data, dfc
 
 
 _API_COLLECTION = "https://api.scryfall.com/cards/collection"
@@ -100,7 +100,7 @@ def canonicalize_batch(names: Iterable[str]) -> dict[str, str]:
         if v is None:
             v = seed.get(n)
         if v is not None:
-            out[n] = v
+            out[n] = dfc.front_face(v)
         else:
             if unknown is None:
                 unknown = []
@@ -116,7 +116,9 @@ def canonicalize_batch(names: Iterable[str]) -> dict[str, str]:
 
     resolved = _scryfall_batch_lookup(unknown)
     for n in unknown:
-        canonical = resolved.get(n, n)
+        # Scryfall returns DFC canonicals as "Front // Back"; Cockatrice
+        # only recognizes the front face, so strip before caching.
+        canonical = dfc.front_face(resolved.get(n, n))
         out[n] = canonical
         disk[n] = canonical  # in-memory cache wins for the rest of the process
     _save_disk_cache(disk)
@@ -131,14 +133,14 @@ def canonicalize(name: str) -> str:
     disk = _get_disk_cache()
     v = disk.get(name)
     if v is not None:
-        return v
+        return dfc.front_face(v)
     v = _SEED.get(name)
     if v is not None:
-        return v
+        return dfc.front_face(v)
     if _network_disabled():
         return name
     resolved = _scryfall_batch_lookup([name])
-    canonical = resolved.get(name, name)
+    canonical = dfc.front_face(resolved.get(name, name))
     disk[name] = canonical
     _save_disk_cache(disk)
     return canonical
@@ -241,7 +243,7 @@ def _scryfall_batch_lookup(names: list[str]) -> dict[str, str]:
 
 
 def _absorb_response(
-    chunk: list[str], data: dict, resolved: dict[str, str]
+    chunk: list[str], data: dict[str, Any], resolved: dict[str, str]
 ) -> None:
     """Match Scryfall response items back to input query names.
 

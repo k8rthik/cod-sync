@@ -79,21 +79,35 @@ def test_falls_back_when_title_is_all_punctuation(tmp_path, monkeypatch):
     assert (tmp_path / "imported_deck.cod").exists()
 
 
-def test_refuses_when_target_already_exists(tmp_path, monkeypatch, capsys):
+def test_syncs_existing_target_against_url(tmp_path, monkeypatch, capsys):
+    """When the default-named .cod already exists, sync it against the URL
+    instead of refusing — that's what the user wants from `cod-sync <URL>`
+    when they've already imported the deck once."""
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "atraxa.cod").write_text("<existing/>", encoding="utf-8")
+    existing = cod.Deck(deckname="Atraxa", zones=(
+        cod.Zone(name="main", cards=(cod.Card(name="Sol Ring", quantity=1),)),
+    ))
+    cod.save(existing, str(tmp_path / "atraxa.cod"))
 
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="Atraxa"),
+        lambda _src: _remote(
+            {"main": {"Sol Ring": 1, "Counterspell": 4}, "side": {}},
+            name="Atraxa",
+        ),
     )
 
     rc = cli._create_from_bare_url(URL, yes=True, dry_run=False)
 
-    assert rc == 2
-    assert "already exists" in capsys.readouterr().err
-    # The pre-existing file is untouched.
-    assert (tmp_path / "atraxa.cod").read_text(encoding="utf-8") == "<existing/>"
+    assert rc == 0
+    # The existing file is updated with the new card from the URL.
+    deck = cod.load(str(tmp_path / "atraxa.cod"))
+    main_zone = deck.zone("main")
+    assert main_zone is not None
+    names = {c.name for c in main_zone.cards}
+    assert names == {"Sol Ring", "Counterspell"}
+    err = capsys.readouterr().err
+    assert "already exists" not in err
 
 
 def test_fetch_failure_returns_error(tmp_path, monkeypatch, capsys):
