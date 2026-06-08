@@ -5,38 +5,6 @@ unlock the next feature wave rather than by category. Each item describes
 the gap and why it matters; implementation details intentionally omitted
 so this doc doesn't rot when the code moves.
 
-## P0 — foundational
-
-Items in this tier address structural risks that quietly turn into user-visible
-breakage. They aren't urgent in a "ship today" sense, but every other change
-becomes safer once they're in place.
-
-### Unify the two per-deck sync paths
-
-The single-file flow and the directory-walk flow are separate
-implementations of the same conceptual pipeline (load, fetch, diff, prompt,
-apply, write). They share helpers but diverge on which prompts fire and how
-results are summarized. Bug fixes and UX changes have to be applied in two
-places, and several already missed one side. Risk: silent drift between the
-two surfaces. Goal: one shared per-deck function parameterized by which
-prompts and which summary style the caller wants.
-
-### Add a type checker to the project
-
-The codebase is forward-annotated and the annotations are mostly accurate,
-but nothing validates them. Source-API shape changes from Moxfield or
-Archidekt would land as AttributeError or KeyError at runtime. A configured
-type checker plus stubs for the HTTP library catches that class of bug at
-commit time instead of in someone's terminal.
-
-### Add CI for tests and type checks
-
-Tests run on a single developer machine, single Python version, single OS.
-A fresh clone on Linux on the lowest supported Python version is unverified
-on every push. The fix is small: a CI configuration that runs the test
-suite plus the type checker on every push and PR. Once this exists, the
-type-checker work above stops drifting.
-
 ## P1 — clear wins
 
 These have meaningful payoff and bounded scope. Pick by what hurts most in
@@ -101,6 +69,19 @@ Both source sites support tags or categories. Cockatrice supports a tags
 field. Today we round-trip whatever was already local but never pull from
 the remote. Syncing tags closes a gap between what users curate online and
 what shows up in Cockatrice.
+
+### Walk-parity: deckname and URL-conflict prompts
+
+The single-file sync path prompts when the remote deckname differs from
+the local one and when the URL stored in the .cod conflicts with the URL
+being synced against. The directory-walk path does neither — it ignores
+deckname entirely and silently overwrites the stored URL. The shared
+per-deck core already exposes both behaviors as boolean knobs the walk
+caller passes `False`. Enabling them is mechanically a one-line change
+per knob, but mid-loop prompts during a multi-file walk are noisier than
+a single-file sync; the right call may be always-on prompts, an opt-in
+flag, or a batch-confirm at the top of the walk. Worth deciding before
+adding any UX that the walk currently lacks.
 
 ## P2 — quality-of-life
 
