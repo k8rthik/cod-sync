@@ -35,26 +35,6 @@ boundaries (routing, prompts, application logic, formatting) is a one-time
 refactor that lowers the cost of every future feature. Worth doing before
 the next two or three features land.
 
-### --version flag
-
-A standard expectation for any CLI. Currently missing. Trivial to add.
-
-### --quiet mode for scripted use
-
-`--yes` accepts every prompt but still prints diff summaries and write
-confirmations. A scheduled job syncing decks nightly has no way to silence
-non-error output without losing real errors too. A quiet flag that
-suppresses informational output while preserving error output covers the
-automation use case.
-
-### Canonicalize the banner card field
-
-The banner card name lives in its own XML field and isn't run through the
-flavor-name resolver. If the local banner is set to a reskin name and the
-canonical lives in the card list, the banner stays as the reskin name and
-Cockatrice can't render it. The banner field needs to go through the same
-canonicalization the card list does.
-
 ### Sync tags
 
 Both source sites support tags or categories. Cockatrice supports a tags
