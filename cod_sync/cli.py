@@ -26,7 +26,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal
 
-from cod_sync import __version__, cod, diff, sources, sourcetag
+from cod_sync import __version__, alt_name, cod, diff, sources, sourcetag
 
 
 # ANSI colors
@@ -200,6 +200,7 @@ class SyncOutcome:
     approved_count: int
     marker_changed: bool
     deckname_changed: bool
+    banner_changed: bool = False
 
 
 def _sync_deck(
@@ -295,7 +296,23 @@ def _sync_deck(
                 final_deck = replace(final_deck, comments=new_comments)
                 marker_changed = True
 
-    if not is_new_file and not approved and not marker_changed and not deckname_changed:
+    # Banner lives on the local deck (user-set in Cockatrice). If it's a
+    # reskin flavor name, Cockatrice can't render it — run it through the
+    # same alt-name layer the card list goes through at fetch time.
+    banner_changed = False
+    if final_deck.banner_card_name:
+        canonical = alt_name.canonicalize(final_deck.banner_card_name)
+        if canonical != final_deck.banner_card_name:
+            final_deck = replace(final_deck, banner_card_name=canonical)
+            banner_changed = True
+
+    if (
+        not is_new_file
+        and not approved
+        and not marker_changed
+        and not deckname_changed
+        and not banner_changed
+    ):
         if not changes:
             _say(f"{indent}{_DIM}No differences.{_RESET}")
             return SyncOutcome("no_change", 0, False, False)
@@ -306,7 +323,9 @@ def _sync_deck(
 
     if is_new_file:
         _say(f"{indent}{_BOLD}Wrote new deck to {cod_path}{_RESET}")
-        return SyncOutcome("created", len(approved), marker_changed, deckname_changed)
+        return SyncOutcome(
+            "created", len(approved), marker_changed, deckname_changed, banner_changed
+        )
 
     parts: list[str] = []
     if approved:
@@ -315,8 +334,12 @@ def _sync_deck(
         parts.append("source URL")
     if deckname_changed:
         parts.append("deckname")
+    if banner_changed:
+        parts.append("banner")
     _say(f"{indent}{_BOLD}Wrote {' + '.join(parts)} to {cod_path}{_RESET}")
-    return SyncOutcome("updated", len(approved), marker_changed, deckname_changed)
+    return SyncOutcome(
+        "updated", len(approved), marker_changed, deckname_changed, banner_changed
+    )
 
 
 # ----- single-file sync (unified sync + import) -----------------------------
