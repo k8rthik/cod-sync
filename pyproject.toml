@@ -10,10 +10,22 @@ requires-python = ">=3.10"
 dependencies = ["requests>=2.31"]
 
 [project.optional-dependencies]
-dev = ["pytest>=7"]
+dev = ["pytest>=7", "mypy>=1.8", "types-requests"]
 
 [project.scripts]
 cod-sync = "cod_sync.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["cod_sync*"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["cod_sync", "tests"]
+strict = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+disable_error_code = ["union-attr", "func-returns-value", "type-arg", "attr-defined"]

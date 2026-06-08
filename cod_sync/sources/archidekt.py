@@ -9,6 +9,7 @@ API: https://archidekt.com/api/decks/<id>/
 from __future__ import annotations
 
 import re
+from typing import Any
 
 import requests
 
@@ -36,7 +37,7 @@ def fetch(url: str) -> RemoteDeck:
     return RemoteDeck(name=_extract_name(data), zones=_parse(data))
 
 
-def _extract_name(data: dict) -> str:
+def _extract_name(data: dict[str, Any]) -> str:
     raw = data.get("name") or ""
     return raw.strip()
 
@@ -48,7 +49,7 @@ def _extract_id(url: str) -> str:
     return m.group(1)
 
 
-def _parse(data: dict) -> dict[str, dict[str, int]]:
+def _parse(data: dict[str, Any]) -> dict[str, dict[str, int]]:
     # Categories list tells us which buckets are part of the deck at all,
     # and which (if any) should be treated as sideboard. Maybeboard is
     # represented by `includedInDeck: false` and must be ignored.
@@ -78,7 +79,7 @@ def _parse(data: dict) -> dict[str, dict[str, int]]:
     return out
 
 
-def _card_name(entry: dict) -> str | None:
+def _card_name(entry: dict[str, Any]) -> str | None:
     card = entry.get("card") or {}
     oracle = card.get("oracleCard") or {}
     return oracle.get("name") or card.get("displayName")

@@ -9,6 +9,7 @@ API: https://api2.moxfield.com/v3/decks/all/<publicId>
 from __future__ import annotations
 
 import re
+from typing import Any
 
 import requests
 
@@ -42,7 +43,7 @@ def fetch(url: str) -> RemoteDeck:
     return RemoteDeck(name=_extract_name(data), zones=_parse(data))
 
 
-def _extract_name(data: dict) -> str:
+def _extract_name(data: dict[str, Any]) -> str:
     raw = data.get("name") or ""
     return raw.strip()
 
@@ -54,7 +55,7 @@ def _extract_id(url: str) -> str:
     return m.group(1)
 
 
-def _parse(data: dict) -> dict[str, dict[str, int]]:
+def _parse(data: dict[str, Any]) -> dict[str, dict[str, int]]:
     """Parse Moxfield v3 response. Falls back to v2 layout if needed."""
     out: dict[str, dict[str, int]] = {"main": {}, "side": {}}
 
@@ -77,7 +78,7 @@ def _parse(data: dict) -> dict[str, dict[str, int]]:
     return out
 
 
-def _add(zone: dict[str, int], entry: dict) -> None:
+def _add(zone: dict[str, int], entry: dict[str, Any]) -> None:
     qty = int(entry.get("quantity", 0))
     if qty <= 0:
         return
