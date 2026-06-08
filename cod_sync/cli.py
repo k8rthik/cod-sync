@@ -26,7 +26,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal
 
-from cod_sync import cod, diff, sources, sourcetag
+from cod_sync import __version__, cod, diff, sources, sourcetag
 
 
 # ANSI colors
@@ -60,6 +60,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="Print changes and do not modify any file")
     parser.add_argument("--info", "-i", action="store_true",
                         help="Print the deck's contents and metrics instead of syncing")
+    parser.add_argument("--version", "-V", action="version",
+                        version=f"%(prog)s {__version__}")
     args = parser.parse_args(argv)
 
     return _route(
