@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cod-sync"
-version = "0.7.1"
+version = "0.7.2"
 description = "Sync a Cockatrice .cod decklist against Moxfield/Archidekt/text with an interactive diff."
 requires-python = ">=3.10"
 dependencies = ["requests>=2.31"]
