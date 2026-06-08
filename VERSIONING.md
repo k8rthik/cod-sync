@@ -111,6 +111,7 @@ Before bumping, an agent must:
 
 | Version | Tier   | What changed                                                                 |
 |---------|--------|------------------------------------------------------------------------------|
+| 0.8.1   | PATCH  | Diff now surfaces stale "Front // Back" local entries as remove + add so pre-0.8.0 .cod files heal to the front face on next sync. Prior behavior actively suppressed the heal — qualifies as PATCH per the "obviously broken" rule. |
 | 0.8.0   | MINOR  | DFC names always stripped to front face at alt_name boundary (fixes Scryfall-introduced regression); `cod-sync URL` now syncs the existing default-named file instead of refusing. |
 | 0.7.x   | PATCH  | Performance work on alt_name; restored Scryfall fallback for reskins outside the bundled seed. |
 
