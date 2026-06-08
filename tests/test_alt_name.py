@@ -223,10 +223,11 @@ def test_absorb_response_handles_empty_response():
 def test_scryfall_lookup_swallows_network_error(monkeypatch):
     import requests
 
-    def boom(*_a, **_k):
-        raise requests.ConnectionError("offline")
+    class BoomSession:
+        def post(self, *_a, **_k):
+            raise requests.ConnectionError("offline")
 
-    monkeypatch.setattr("cod_sync.alt_name.requests.post", boom)
+    monkeypatch.setattr("cod_sync.alt_name._get_session", lambda: BoomSession())
     assert alt_name._scryfall_batch_lookup(["X"]) == {}
 
 
@@ -238,7 +239,9 @@ def test_scryfall_lookup_handles_bad_json(monkeypatch):
         def json(self):
             raise ValueError("not json")
 
-    monkeypatch.setattr(
-        "cod_sync.alt_name.requests.post", lambda *_a, **_k: FakeResp()
-    )
+    class FakeSession:
+        def post(self, *_a, **_k):
+            return FakeResp()
+
+    monkeypatch.setattr("cod_sync.alt_name._get_session", lambda: FakeSession())
     assert alt_name._scryfall_batch_lookup(["X"]) == {}
