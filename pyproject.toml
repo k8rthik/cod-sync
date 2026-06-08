@@ -9,6 +9,9 @@ description = "Sync a Cockatrice .cod decklist against Moxfield/Archidekt/text w
 requires-python = ">=3.10"
 dependencies = ["requests>=2.31"]
 
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
 [project.scripts]
 cod-sync = "cod_sync.cli:main"
 
