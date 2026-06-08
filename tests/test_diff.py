@@ -77,20 +77,34 @@ def test_dfc_new_card_uses_front_face_only():
     assert changes[0].name == "Fable of the Mirror-Breaker"
 
 
-def test_dfc_matches_full_local_with_front_only_remote():
-    """Other direction: local stores the full "Front // Back" form, remote
-    only sends "Front" (the post-source-normalization shape). The diff matches
-    them as the same card and leaves the local key intact."""
+def test_dfc_local_full_form_is_healed_to_remote_front_face():
+    """Local stores a stale "Front // Back" entry (written before the v0.8.0
+    alt_name fix); remote sends the front face only. Cockatrice cannot read
+    the full form, so the diff must surface the stale entry as a remove and
+    the correct entry as an add, letting the user heal the file on next sync.
+    """
     deck = _deck({"Bala Ged Recovery // Bala Ged Sanctuary": 1})
     remote = {"main": {"Bala Ged Recovery": 1}, "side": {}}
-    assert diff.compute(deck, remote) == []
+    changes = diff.compute(deck, remote)
+    assert len(changes) == 2
+    by_kind = {(c.kind, c.name): c for c in changes}
+    remove = by_kind[("remove", "Bala Ged Recovery // Bala Ged Sanctuary")]
+    add = by_kind[("add", "Bala Ged Recovery")]
+    assert remove.local_qty == 1
+    assert add.remote_qty == 1
 
 
-def test_dfc_qty_change_preserves_full_local_form():
+def test_dfc_local_full_form_with_qty_change_is_healed():
+    """Heal also resets quantity. Local has 1 under the stale full key,
+    remote wants 3 under the front face — emit a remove of the full form
+    at qty 1 and an add of the front face at qty 3.
+    """
     deck = _deck({"Bala Ged Recovery // Bala Ged Sanctuary": 1})
     remote = {"main": {"Bala Ged Recovery": 3}, "side": {}}
     changes = diff.compute(deck, remote)
-    assert len(changes) == 1
-    assert changes[0].kind == "qty"
-    assert changes[0].name == "Bala Ged Recovery // Bala Ged Sanctuary"
-    assert changes[0].remote_qty == 3
+    assert len(changes) == 2
+    by_kind = {(c.kind, c.name): c for c in changes}
+    remove = by_kind[("remove", "Bala Ged Recovery // Bala Ged Sanctuary")]
+    add = by_kind[("add", "Bala Ged Recovery")]
+    assert remove.local_qty == 1
+    assert add.remote_qty == 3

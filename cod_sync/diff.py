@@ -65,29 +65,25 @@ def _reconcile_dfc_names(local: dict[str, int], remote: dict[str, int]) -> dict[
 
     The source fetchers already strip "Front // Back" down to "Front" before
     the diff runs, but this layer stays defensive so direct callers can pass
-    raw remote dicts in either form. Four cases:
+    raw remote dicts in either form. Three cases:
 
       1. Remote name matches local exactly — use as-is.
-      2. Remote has "Front // Back" — reduce to "Front". This also covers the
-         case where local has "Front" (it'll match) and the new-add case where
-         no local match exists (we still want the Cockatrice-compatible front
-         face name on the new card).
-      3. Remote has "Front" and local stores the same card as "Front // Back"
-         — promote remote's key to the local full form so the diff sees them
-         as the same card.
-      4. No match available — leave the remote name untouched.
+      2. Remote has "Front // Back" — reduce to "Front" so it matches a
+         front-only local key (and so new-add cards land under the
+         Cockatrice-compatible front-face name).
+      3. No match available — leave the remote name untouched.
+
+    A local "Front // Back" entry with no matching remote key is intentionally
+    surfaced as a remove + add pair: Cockatrice can't read the full form, so
+    those entries are stale artifacts from before the alt_name DFC fix and
+    need to heal to the front face on the next sync.
     """
-    front_to_full = {
-        name.split(" // ", 1)[0]: name for name in local if " // " in name
-    }
     result: dict[str, int] = {}
     for remote_name, qty in remote.items():
         if remote_name in local:
             matched = remote_name
         elif " // " in remote_name:
             matched = dfc.front_face(remote_name)
-        elif remote_name in front_to_full:
-            matched = front_to_full[remote_name]
         else:
             matched = remote_name
         result[matched] = result.get(matched, 0) + qty
