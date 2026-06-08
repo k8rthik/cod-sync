@@ -21,8 +21,9 @@ import argparse
 import os
 import re
 import sys
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Literal
 
 from cod_sync import cod, diff, sources, sourcetag
 
@@ -165,6 +166,137 @@ def _ensure_cod_suffix(name: str) -> str:
     return name if name.endswith(".cod") else name + ".cod"
 
 
+# ----- per-deck sync core ---------------------------------------------------
+
+
+SyncStatus = Literal["no_change", "updated", "created", "skipped", "dry_run"]
+
+
+@dataclass(frozen=True)
+class SyncOutcome:
+    status: SyncStatus
+    approved_count: int
+    marker_changed: bool
+    deckname_changed: bool
+
+
+def _sync_deck(
+    deck: cod.Deck,
+    cod_path: str,
+    remote_zones: dict[str, dict[str, int]],
+    remote_name: str | None,
+    *,
+    is_new_file: bool,
+    url_to_remember: str | None,
+    prompt_deckname_on_mismatch: bool,
+    prompt_on_url_conflict: bool,
+    yes: bool,
+    dry_run: bool,
+    indent: str = "",
+) -> SyncOutcome:
+    """Run diff → approve → apply → save for one deck.
+
+    The single-file and walk callers differ only in (1) which prompts fire
+    when local and remote disagree, (2) whether the file is being created
+    fresh, and (3) output indentation. Everything else is shared.
+    """
+    if is_new_file:
+        changes = _import_preview_changes(remote_zones)
+    else:
+        changes = diff.compute(deck, remote_zones)
+
+    if changes:
+        _print_summary(changes, indent=indent)
+
+    if dry_run:
+        if not changes:
+            print(f"{indent}{_DIM}No differences.{_RESET}")
+        return SyncOutcome("dry_run", 0, False, False)
+
+    if is_new_file:
+        if not changes:
+            print(f"{indent}{_DIM}Remote source is empty. Nothing to create.{_RESET}")
+            return SyncOutcome("no_change", 0, False, False)
+        if not yes:
+            try:
+                ans = input(
+                    f"{indent}Create {cod_path} with {len(changes)} card(s)? [Y/n] "
+                ).strip().lower()
+            except EOFError:
+                ans = "n"
+            if ans not in ("", "y", "yes"):
+                print(f"{indent}{_DIM}Aborted.{_RESET}")
+                return SyncOutcome("skipped", 0, False, False)
+        approved = changes
+    else:
+        approved = (changes if yes else _review(changes, indent=indent)) if changes else []
+
+    final_deck = _apply(deck, approved) if approved else deck
+
+    deckname_changed = False
+    if is_new_file:
+        new_deckname = remote_name or Path(cod_path).stem
+        if new_deckname != final_deck.deckname:
+            final_deck = replace(final_deck, deckname=new_deckname)
+            deckname_changed = True
+    elif (
+        prompt_deckname_on_mismatch
+        and remote_name
+        and _names_differ(remote_name, final_deck.deckname)
+    ):
+        if _confirm(
+            f"Local name:  {final_deck.deckname or '(none)'}\n"
+            f"Remote name: {remote_name}\n"
+            f"Update deckname?",
+            default=False, auto_yes=yes,
+        ):
+            final_deck = replace(final_deck, deckname=remote_name)
+            deckname_changed = True
+
+    marker_changed = False
+    if url_to_remember is not None:
+        stored = sourcetag.get_source_url(final_deck.comments)
+        if stored is None or stored == url_to_remember:
+            update = True
+        elif prompt_on_url_conflict:
+            update = _confirm(
+                f"Stored URL: {stored}\n"
+                f"New URL:    {url_to_remember}\n"
+                f"Update stored URL?",
+                default=False, auto_yes=yes,
+            )
+        else:
+            update = True
+        if update:
+            new_comments = sourcetag.set_source_url(final_deck.comments, url_to_remember)
+            if new_comments != final_deck.comments:
+                final_deck = replace(final_deck, comments=new_comments)
+                marker_changed = True
+
+    if not is_new_file and not approved and not marker_changed and not deckname_changed:
+        if not changes:
+            print(f"{indent}{_DIM}No differences.{_RESET}")
+            return SyncOutcome("no_change", 0, False, False)
+        print(f"{indent}{_DIM}No changes applied.{_RESET}")
+        return SyncOutcome("skipped", 0, False, False)
+
+    cod.save(final_deck, cod_path)
+
+    if is_new_file:
+        print(f"{indent}{_BOLD}Wrote new deck to {cod_path}{_RESET}")
+        return SyncOutcome("created", len(approved), marker_changed, deckname_changed)
+
+    parts: list[str] = []
+    if approved:
+        parts.append(f"{len(approved)} change(s)")
+    if marker_changed:
+        parts.append("source URL")
+    if deckname_changed:
+        parts.append("deckname")
+    print(f"{indent}{_BOLD}Wrote {' + '.join(parts)} to {cod_path}{_RESET}")
+    return SyncOutcome("updated", len(approved), marker_changed, deckname_changed)
+
+
 # ----- single-file sync (unified sync + import) -----------------------------
 
 
@@ -197,91 +329,14 @@ def _sync_file(cod_path: str, url: str | None, *, yes: bool, dry_run: bool) -> i
         print(f"error: failed to fetch {url}: {e}", file=sys.stderr)
         return 2
 
-    if exists:
-        changes = diff.compute(deck, remote.zones)
-    else:
-        changes = _import_preview_changes(remote.zones)
-
-    if changes:
-        _print_summary(changes)
-
-    if dry_run:
-        if not changes:
-            print(f"{_DIM}No differences.{_RESET}")
-        return 0
-
-    if not exists:
-        if not changes:
-            print(f"{_DIM}Remote source is empty. Nothing to create.{_RESET}")
-            return 0
-        if not yes:
-            try:
-                ans = input(f"Create {cod_path} with {len(changes)} card(s)? [Y/n] ").strip().lower()
-            except EOFError:
-                ans = "n"
-            if ans not in ("", "y", "yes"):
-                print(f"{_DIM}Aborted.{_RESET}")
-                return 0
-        approved = changes
-    else:
-        approved = (changes if yes else _review(changes)) if changes else []
-
-    final_deck = _apply(deck, approved) if approved else deck
-
-    deckname_changed = False
-    if not exists:
-        new_deckname = remote.name or Path(cod_path).stem
-        if new_deckname != final_deck.deckname:
-            final_deck = replace(final_deck, deckname=new_deckname)
-            deckname_changed = True
-    elif remote.name and _names_differ(remote.name, final_deck.deckname):
-        if _confirm(
-            f"Local name:  {final_deck.deckname or '(none)'}\n"
-            f"Remote name: {remote.name}\n"
-            f"Update deckname?",
-            default=False, auto_yes=yes,
-        ):
-            final_deck = replace(final_deck, deckname=remote.name)
-            deckname_changed = True
-
-    marker_changed = False
-    if _is_url(url):
-        stored = sourcetag.get_source_url(final_deck.comments)
-        if stored is None or stored == url:
-            update = True
-        else:
-            update = _confirm(
-                f"Stored URL: {stored}\n"
-                f"New URL:    {url}\n"
-                f"Update stored URL?",
-                default=False, auto_yes=yes,
-            )
-        if update:
-            new_comments = sourcetag.set_source_url(final_deck.comments, url)
-            if new_comments != final_deck.comments:
-                final_deck = replace(final_deck, comments=new_comments)
-                marker_changed = True
-
-    if exists and not approved and not marker_changed and not deckname_changed:
-        if not changes:
-            print(f"{_DIM}No differences.{_RESET}")
-        else:
-            print(f"{_DIM}No changes applied.{_RESET}")
-        return 0
-
-    cod.save(final_deck, cod_path)
-
-    if not exists:
-        print(f"{_BOLD}Wrote new deck to {cod_path}{_RESET}")
-    else:
-        parts: list[str] = []
-        if approved:
-            parts.append(f"{len(approved)} change(s)")
-        if marker_changed:
-            parts.append("source URL")
-        if deckname_changed:
-            parts.append("deckname")
-        print(f"{_BOLD}Wrote {' + '.join(parts)} to {cod_path}{_RESET}")
+    _sync_deck(
+        deck, cod_path, remote.zones, remote.name,
+        is_new_file=not exists,
+        url_to_remember=url if _is_url(url) else None,
+        prompt_deckname_on_mismatch=True,
+        prompt_on_url_conflict=True,
+        yes=yes, dry_run=dry_run,
+    )
     return 0
 
 
@@ -436,14 +491,17 @@ def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool
             stats["errors"] += 1
             continue
 
-        url_to_remember = source if _is_url(source) else None
-        outcome = _sync_one(
-            deck, str(path), remote.zones,
-            url_to_remember=url_to_remember,
+        outcome = _sync_deck(
+            deck, str(path), remote.zones, remote.name,
+            is_new_file=False,
+            url_to_remember=source if _is_url(source) else None,
+            prompt_deckname_on_mismatch=False,
+            prompt_on_url_conflict=False,
             yes=yes, dry_run=dry_run, indent="  ",
         )
         print()
-        stats[outcome] = stats.get(outcome, 0) + 1
+        stat_key = "no_change" if outcome.status == "dry_run" else outcome.status
+        stats[stat_key] = stats.get(stat_key, 0) + 1
 
     print(
         f"{_BOLD}Done.{_RESET} "
@@ -458,59 +516,6 @@ def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool
 def _find_cod_files(root: Path, *, recursive: bool) -> list[Path]:
     pattern = "**/*.cod" if recursive else "*.cod"
     return sorted(p for p in root.glob(pattern) if p.is_file())
-
-
-# ----- per-file flow used inside the walk -----------------------------------
-
-
-def _sync_one(
-    deck: cod.Deck,
-    cod_path: str,
-    remote: dict[str, dict[str, int]],
-    *,
-    url_to_remember: str | None,
-    yes: bool,
-    dry_run: bool,
-    indent: str = "",
-) -> str:
-    """Diff → review → apply for a single deck inside the walk.
-
-    Returns one of: "no_change", "skipped", "updated".
-    """
-    changes = diff.compute(deck, remote)
-    if changes:
-        _print_summary(changes, indent=indent)
-
-    if dry_run:
-        if not changes:
-            print(f"{indent}{_DIM}No differences.{_RESET}")
-        return "no_change"
-
-    approved = (changes if yes else _review(changes, indent=indent)) if changes else []
-    final_deck = _apply(deck, approved) if approved else deck
-
-    marker_changed = False
-    if url_to_remember is not None:
-        new_comments = sourcetag.set_source_url(final_deck.comments, url_to_remember)
-        if new_comments != final_deck.comments:
-            final_deck = replace(final_deck, comments=new_comments)
-            marker_changed = True
-
-    if not approved and not marker_changed:
-        if not changes:
-            print(f"{indent}{_DIM}No differences.{_RESET}")
-            return "no_change"
-        print(f"{indent}{_DIM}No changes applied.{_RESET}")
-        return "skipped"
-
-    cod.save(final_deck, cod_path)
-    parts: list[str] = []
-    if approved:
-        parts.append(f"{len(approved)} change(s)")
-    if marker_changed:
-        parts.append("source URL")
-    print(f"{indent}{_BOLD}Wrote {' + '.join(parts)} to {cod_path}{_RESET}")
-    return "updated"
 
 
 # ----- UI helpers -----------------------------------------------------------
