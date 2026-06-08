@@ -47,14 +47,6 @@ non-error output without losing real errors too. A quiet flag that
 suppresses informational output while preserving error output covers the
 automation use case.
 
-### Mark commanders as commanders in the .cod
-
-Both sources tell us which cards are commanders. We correctly route them
-into the main zone but drop the commander designation. Cockatrice has a
-representation for this; we lose the signal silently. Fixing this means
-the imported deck shows the correct commander pin in Cockatrice without
-manual intervention.
-
 ### Canonicalize the banner card field
 
 The banner card name lives in its own XML field and isn't run through the
@@ -117,13 +109,6 @@ Defer unless someone actually feels the pain.
 Commit messages are descriptive, but there's no human-readable summary
 mapping versions to user-visible changes. A standard CHANGELOG would help
 users understand what they're getting when they upgrade.
-
-### Companion routing for Constructed decks
-
-Companions get routed to the main zone, which is correct for EDH and wrong
-for Constructed. Today the user moves the card by hand. Format-aware
-routing — or a flag — would close this gap, but the audience that runs
-Constructed decks in Cockatrice and uses this tool is small.
 
 ### Maybeboard handling
 

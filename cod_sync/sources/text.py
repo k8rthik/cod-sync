@@ -19,8 +19,11 @@ _LINE_RE = re.compile(
     re.VERBOSE,
 )
 
-_SIDE_HEADERS = {"sideboard", "side", "sb"}
-_MAIN_HEADERS = {"deck", "mainboard", "main", "commander", "commanders", "companion"}
+# Cockatrice has no commander/companion zone; both render with the
+# commander pin only from the sideboard, so commander/companion headers
+# route there too.
+_SIDE_HEADERS = {"sideboard", "side", "sb", "commander", "commanders", "companion"}
+_MAIN_HEADERS = {"deck", "mainboard", "main"}
 
 
 def parse(text: str) -> dict[str, dict[str, int]]:

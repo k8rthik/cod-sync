@@ -21,12 +21,13 @@ _USER_AGENT = "cod-sync/0.1 (+local CLI for personal use)"
 _DECK_ID_RE = re.compile(r"/decks/([A-Za-z0-9_-]+)")
 
 # Moxfield board names → Cockatrice zone names.
-# Main deck, commanders, companions all live in `main` for Cockatrice.
-# Sideboard goes to `side`. Maybeboard is intentionally ignored.
+# Cockatrice has no commander/companion zone; the convention is to place
+# both in the sideboard so they render with the commander pin. Maybeboard
+# is intentionally ignored.
 _BOARD_TO_ZONE = {
     "mainboard": "main",
-    "commanders": "main",
-    "companions": "main",
+    "commanders": "side",
+    "companions": "side",
     "sideboard": "side",
 }
 

@@ -20,9 +20,10 @@ _API_BASE = "https://archidekt.com/api/decks/"
 _USER_AGENT = "cod-sync/0.1 (+local CLI for personal use)"
 _DECK_ID_RE = re.compile(r"/decks/(\d+)")
 
-# Archidekt categories that map to Cockatrice's `side` zone.
-# Everything else (Commander included) goes to `main`.
-_SIDE_CATEGORIES = {"sideboard"}
+# Archidekt categories that map to Cockatrice's `side` zone. Cockatrice
+# has no commander/companion zone; both render with the commander pin
+# only from the sideboard.
+_SIDE_CATEGORIES = {"sideboard", "commander", "companion"}
 
 
 def fetch(url: str) -> RemoteDeck:

@@ -54,8 +54,13 @@ def test_moxfield_strips_dfc_in_sideboard_and_commanders():
         }
     }
     out = moxfield._parse(payload)
-    assert out["side"] == {"Brazen Borrower": 1}
-    assert out["main"] == {"Halana and Alena, Partners": 1}
+    # Commanders ride along in `side` with the literal sideboard so they
+    # render with the commander pin in Cockatrice.
+    assert out["side"] == {
+        "Brazen Borrower": 1,
+        "Halana and Alena, Partners": 1,
+    }
+    assert out["main"] == {}
 
 
 def test_archidekt_strips_dfc_back():
