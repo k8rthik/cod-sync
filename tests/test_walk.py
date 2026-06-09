@@ -175,3 +175,72 @@ def test_no_stored_url_q_quits(tmp_path, monkeypatch):
     cli._walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
 
     assert fetched == []
+
+
+# ----- per-deck parity with sync (deckname mismatch) -----------------------
+#
+# Walk used to suppress the deckname-mismatch prompt that single-file sync
+# fires. After unifying `_sync_deck`'s per-deck logic, walk should hit the
+# same `cli._confirm` path. URL-conflict parity isn't tested here because
+# walk only ever syncs against the stored URL (or none-then-store), so
+# `stored == url_to_remember` always holds and the conflict branch is
+# structurally unreachable from this entrypoint.
+
+
+def _stub_fetch_named(monkeypatch, remote_name):
+    """Like _stub_fetch but the remote deck carries a real name."""
+    def fake_fetch(_src):
+        return RemoteDeck(
+            name=remote_name, zones={"main": {"Sol Ring": 1}, "side": {}}
+        )
+
+    monkeypatch.setattr("cod_sync.cli.sources.fetch", fake_fetch)
+
+
+def test_walk_prompts_deckname_mismatch_accept(tmp_path, monkeypatch):
+    _write(tmp_path / "a.cod", deckname="Local", url=URL_STORED, main={"Sol Ring": 1})
+    _stub_fetch_named(monkeypatch, "Remote")
+    _queue_input(monkeypatch, [""])  # accept stored URL in the walk-level prompt
+
+    confirm_calls: list = []
+
+    def fake_confirm(prompt, *, default, auto_yes):
+        confirm_calls.append(prompt)
+        return True
+
+    monkeypatch.setattr("cod_sync.cli._confirm", fake_confirm)
+
+    cli._walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
+
+    assert len(confirm_calls) == 1
+    assert "Local" in confirm_calls[0]
+    assert "Remote" in confirm_calls[0]
+    assert cod.load(str(tmp_path / "a.cod")).deckname == "Remote"
+
+
+def test_walk_prompts_deckname_mismatch_decline(tmp_path, monkeypatch):
+    _write(tmp_path / "a.cod", deckname="Local", url=URL_STORED, main={"Sol Ring": 1})
+    _stub_fetch_named(monkeypatch, "Remote")
+    _queue_input(monkeypatch, [""])
+
+    monkeypatch.setattr("cod_sync.cli._confirm", lambda *a, **kw: False)
+
+    cli._walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
+
+    assert cod.load(str(tmp_path / "a.cod")).deckname == "Local"
+
+
+def test_walk_yes_flag_auto_updates_deckname(tmp_path, monkeypatch):
+    _write(tmp_path / "a.cod", deckname="Local", url=URL_STORED, main={"Sol Ring": 1})
+    _stub_fetch_named(monkeypatch, "Remote")
+
+    # -y must bypass *both* the walk-level y/n/q prompt AND the deckname
+    # `_confirm`. Any input() call is a regression.
+    def boom(_prompt=""):
+        raise AssertionError("prompt should not be shown under --yes")
+
+    monkeypatch.setattr("builtins.input", boom)
+
+    cli._walk_directory(str(tmp_path), recursive=False, yes=True, dry_run=False)
+
+    assert cod.load(str(tmp_path / "a.cod")).deckname == "Remote"

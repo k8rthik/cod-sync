@@ -1,10 +1,14 @@
 """Per-deck sync orchestration.
 
-The single-file and walk callers both funnel through ``_sync_deck``;
-they differ only in (1) which prompts fire when local and remote
-disagree, (2) whether the file is being created fresh, and (3) output
-indentation. ``_sync_file`` and ``_create_from_bare_url`` wrap the
-single-file flow.
+``_sync_deck`` is the one shared per-deck code path. The three modes
+that call it — single-file sync (``_sync_file``), bare-URL import
+(``_create_from_bare_url``), and directory walk (``_walk_directory``
+in ``walk.py``) — differ only in how they *arrive* at the call:
+sync loads an existing ``.cod`` and resolves its URL, import derives
+a filename from the remote and delegates to sync, and walk iterates
+a directory and asks per-file whether to sync. Once inside
+``_sync_deck``, behavior is identical across all three callers; ``-y``
+is the single knob that turns prompts into accept-all.
 """
 from __future__ import annotations
 
@@ -52,17 +56,17 @@ def _sync_deck(
     *,
     is_new_file: bool,
     url_to_remember: str | None,
-    prompt_deckname_on_mismatch: bool,
-    prompt_on_url_conflict: bool,
     yes: bool,
     dry_run: bool,
     indent: str = "",
 ) -> SyncOutcome:
     """Run diff → approve → apply → save for one deck.
 
-    The single-file and walk callers differ only in (1) which prompts fire
-    when local and remote disagree, (2) whether the file is being created
-    fresh, and (3) output indentation. Everything else is shared.
+    Identical behavior regardless of caller; the only mode-dependent
+    inputs are ``is_new_file`` (derived from whether the target ``.cod``
+    exists) and ``indent`` (set by walk to nest per-deck output under
+    its file header). ``-y`` collapses all confirm prompts into
+    accept-all via ``_confirm(..., auto_yes=yes)``.
     """
     if is_new_file:
         changes = _import_preview_changes(remote_zones)
@@ -103,11 +107,7 @@ def _sync_deck(
         if new_deckname != final_deck.deckname:
             final_deck = replace(final_deck, deckname=new_deckname)
             deckname_changed = True
-    elif (
-        prompt_deckname_on_mismatch
-        and remote_name
-        and _names_differ(remote_name, final_deck.deckname)
-    ):
+    elif remote_name and _names_differ(remote_name, final_deck.deckname):
         # cli._confirm (not prompts._confirm) so test patches on
         # `cod_sync.cli._confirm` reach this call site.
         if cli._confirm(
@@ -124,7 +124,7 @@ def _sync_deck(
         stored = sourcetag.get_source_url(final_deck.comments)
         if stored is None or stored == url_to_remember:
             update = True
-        elif prompt_on_url_conflict:
+        else:
             # cli._confirm (not prompts._confirm) so test patches on
             # `cod_sync.cli._confirm` reach this call site.
             update = cli._confirm(
@@ -133,8 +133,6 @@ def _sync_deck(
                 f"Update stored URL?",
                 default=False, auto_yes=yes,
             )
-        else:
-            update = True
         if update:
             new_comments = sourcetag.set_source_url(final_deck.comments, url_to_remember)
             if new_comments != final_deck.comments:
@@ -253,8 +251,6 @@ def _sync_file(cod_path: str, url: str | None, *, yes: bool, dry_run: bool) -> i
         deck, cod_path, remote.zones, remote.name, remote.tags,
         is_new_file=not exists,
         url_to_remember=url if _is_url(url) else None,
-        prompt_deckname_on_mismatch=True,
-        prompt_on_url_conflict=True,
         yes=yes, dry_run=dry_run,
     )
     return 0

@@ -5,49 +5,6 @@ unlock the next feature wave rather than by category. Each item describes
 the gap and why it matters; implementation details intentionally omitted
 so this doc doesn't rot when the code moves.
 
-## P1 — clear wins
-
-These have meaningful payoff and bounded scope. Pick by what hurts most in
-practice.
-
-### Distinguish error modes in source fetchers
-
-Today every source-fetch failure collapses to one error message regardless
-of root cause. Deck deleted, deck made private, rate limit, timeout,
-malformed JSON, unreachable host all look the same to the user. The fix is
-to surface specific error types or codes per failure mode so the message
-tells you what to do about it.
-
-### Add at least one real-network integration test per source
-
-Every source test is built on hand-crafted JSON payloads. The day a remote
-API changes its response shape, every test still passes and every user
-breaks. One opt-in test per source — gated behind a marker so the default
-test run stays offline and fast — that fetches a public deck and asserts
-basic shape would catch that class of breakage.
-
-### Split the CLI module by responsibility
-
-The CLI module currently mixes dispatch, file I/O, interactive prompts,
-deck mutation, and diff formatting. The growth pressure is real: every new
-feature lands by extending this one file. Splitting along responsibility
-boundaries (routing, prompts, application logic, formatting) is a one-time
-refactor that lowers the cost of every future feature. Worth doing before
-the next two or three features land.
-
-### Walk-parity: deckname and URL-conflict prompts
-
-The single-file sync path prompts when the remote deckname differs from
-the local one and when the URL stored in the .cod conflicts with the URL
-being synced against. The directory-walk path does neither — it ignores
-deckname entirely and silently overwrites the stored URL. The shared
-per-deck core already exposes both behaviors as boolean knobs the walk
-caller passes `False`. Enabling them is mechanically a one-line change
-per knob, but mid-loop prompts during a multi-file walk are noisier than
-a single-file sync; the right call may be always-on prompts, an opt-in
-flag, or a batch-confirm at the top of the walk. Worth deciding before
-adding any UX that the walk currently lacks.
-
 ## P2 — quality-of-life
 
 Real value but lower urgency. Pick when scratching specific itches.
@@ -80,14 +37,17 @@ Defer unless someone actually feels the pain.
 ### CHANGELOG
 
 Commit messages are descriptive, but there's no human-readable summary
-mapping versions to user-visible changes. A standard CHANGELOG would help
-users understand what they're getting when they upgrade.
+mapping versions to user-visible changes. `VERSIONING.md` already
+maintains a tier-and-justification table at the bottom; a proper
+CHANGELOG.md keyed to the same versions would make upgrade decisions
+easier for users who don't read git log.
 
 ### Maybeboard handling
 
-Maybeboard contents are silently dropped today. No one has asked for them
-back, but it's an option that exists in both sources and isn't represented
-in our model.
+Maybeboard contents are silently dropped today (see comments in
+`sources/moxfield.py` and `sources/archidekt.py`). No one has asked for
+them back, but it's an option that exists in both sources and isn't
+represented in our model.
 
 ### Multi-printing output ordering
 
@@ -102,31 +62,53 @@ against edge cases users actually paste: parenthesized comments inline,
 malformed quantities, mixed-case section headers, trailing whitespace
 oddities. Each is a one-line test that would prevent a real future bug.
 
+### Walk error-recovery summary
+
+The walk currently aggregates a per-status count at the end (updated,
+no-change, skipped, errors). When `errors > 0` the user has to scroll
+back through interleaved output to see which files failed and why.
+Collecting a small list of `(path, error)` and printing it as a footer
+under the summary would make a multi-file walk far easier to triage.
+
 ## Tooling and project hygiene
 
-These overlap with P0 and P1 but are listed together so they don't get
-buried under feature items.
-
-### Pre-commit hooks
-
-Pre-commit configuration would run formatter, linter, and type checker
-locally before commit, catching style drift and obvious bugs without
-needing CI to do it. Low-friction once configured.
+Listed separately so they don't get buried under feature items.
 
 ### Linter and formatter
 
 Code style is consistent by hand today and vulnerable to drift as
-contributors land changes. A configured formatter and linter makes
-consistency mechanical and removes the need to litigate style in review.
+contributors land changes. A configured formatter (black) and linter
+(ruff) makes consistency mechanical and removes the need to litigate
+style in review. `pyproject.toml` already configures mypy in strict
+mode; adding the other two is the natural next step.
+
+### Pre-commit hooks
+
+Pre-commit configuration would run the formatter, linter, mypy, and
+pytest locally before commit, catching style drift and obvious bugs
+without needing CI to do it. Low-friction once the linter/formatter
+above are in place.
+
+### CI
+
+There's no GitHub Actions (or equivalent) workflow running tests and
+mypy on PRs. The pre-push checklist in CLAUDE.md leans entirely on
+local discipline; a CI run would catch the cases where that discipline
+slips. The offline test suite is fast enough that a per-push run costs
+nothing meaningful.
 
 ### Release automation
 
-Version bumps, tags, and pushes are manual. A workflow that runs on a tag
-push to build wheels and publish is standard practice. Optional but
-removes a class of "forgot to bump pyproject" mistakes.
+Version bumps, tags, and pushes are manual. A workflow that runs on a
+tag push to build wheels and (optionally) publish is standard practice.
+Optional but removes a class of "forgot to bump pyproject" mistakes —
+note that CLAUDE.md already documents the dual-file bump (`pyproject.toml`
+and `cod_sync/__init__.py`) precisely because it's been forgotten before.
 
 ### Contributor docs
 
 There's no document explaining how to set up a dev environment, run the
-tests, or what the codebase's conventions are. As soon as anyone other
-than the original author wants to contribute, this becomes the blocker.
+tests (including the opt-in `network` marker), or what the codebase's
+conventions are. As soon as anyone other than the original author wants
+to contribute, this becomes the blocker. CLAUDE.md and VERSIONING.md
+cover agent-facing rules but aren't shaped as a human onboarding doc.

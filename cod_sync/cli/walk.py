@@ -2,7 +2,9 @@
 
 For each ``.cod`` file in a directory tree, prompts whether to sync
 against its stored source URL (or asks for a fresh one), then delegates
-the per-deck work to ``_sync_deck``.
+the per-deck work to ``_sync_deck``. Per-deck behavior is identical to
+single-file sync — including deckname-mismatch and URL-conflict
+prompts, which can fire mid-loop. Pass ``-y`` to accept-all.
 """
 from __future__ import annotations
 
@@ -87,8 +89,6 @@ def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool
             deck, str(path), remote.zones, remote.name, remote.tags,
             is_new_file=False,
             url_to_remember=source if _is_url(source) else None,
-            prompt_deckname_on_mismatch=False,
-            prompt_on_url_conflict=False,
             yes=yes, dry_run=dry_run, indent="  ",
         )
         _state.say()
