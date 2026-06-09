@@ -113,6 +113,17 @@ Keep the body short — the feature commit explains the change in detail; the bu
 - The `_seed_data.py` file is a generated artifact from `scripts/refresh_seed.py`. Don't hand-edit it; if a reskin mapping needs to change, fix the generator or the runtime alt_name layer.
 - DFC normalization is layered: source fetchers strip first (`cod_sync/sources/*.py`), alt_name strips again at its output (`cod_sync/alt_name.py`), and `_reconcile_dfc_names` in `cod_sync/diff.py` handles any residual mismatch between local and remote. Front-face-only is the canonical shape everywhere — Cockatrice cannot read the full `Front // Back` form.
 
+## Keeping TODO.md live
+
+`TODO.md` is a working log, not an archive. Treat it as state that's expected to change as you work:
+
+- **Starting a task that's in TODO.md** — re-read the item before acting on it; the gap may have drifted since it was written. If the description is still accurate, proceed; if it's stale, update or split it before starting.
+- **Completing a task** — remove the corresponding TODO.md item in the same commit (or in a docs-cleanup commit within the same push). Done work doesn't belong in the open-work list. The `chore` / `docs` commit that lands the cleanup is the right home.
+- **Unexpected gaps discovered mid-task** — a missing test, a bug adjacent to what you were fixing, a tooling smell, a doc that's now stale, an architectural inconsistency. Add it to TODO.md before context-switching away. Capture even small items: the next session won't have your in-context observation otherwise.
+- **Intermediate findings worth tracking but not worth doing now** — design tensions, risky migrations ahead, things you noticed while reading code. Add them with enough context that they're actionable cold. If the right tier (P1 / P2) is unclear, default to P2 and surface it to the user.
+
+Follow the existing intro convention: items describe the gap and why it matters, not the implementation. That's what keeps the doc from rotting when code moves.
+
 ## Local dev environment notes
 
 Operational gotchas you'll hit mid-session if you're not prepared for them. CONTRIBUTING.md is the human-facing tour; the items below are agent-specific.
