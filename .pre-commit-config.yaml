@@ -1,0 +1,43 @@
+# Run on every commit: `pre-commit install` once after cloning.
+# Hooks here mirror what CI enforces, so a clean local commit is a clean PR.
+#
+# Pytest is wired to `pre-push` (not `pre-commit`) so per-edit commits stay
+# fast; tests still run before anything leaves the machine.
+default_install_hook_types: [pre-commit, pre-push]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (strict)
+        entry: python -m mypy
+        language: system
+        types_or: [python, pyi]
+        pass_filenames: false
+        require_serial: true
+
+      - id: pytest
+        name: pytest
+        stages: [pre-push]
+        entry: python -m pytest -q
+        language: system
+        pass_filenames: false
+        always_run: true
