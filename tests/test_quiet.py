@@ -32,9 +32,9 @@ def _write_deck(path, *, deckname="", comments="", main=None, side=None):
 def _reset_quiet():
     """Module-level _QUIET leaks across tests if a test mutates it directly.
     main() resets it on every invocation, but defensively clear here too."""
-    cli._QUIET = False
+    cli._state._QUIET = False
     yield
-    cli._QUIET = False
+    cli._state._QUIET = False
 
 
 @pytest.fixture(autouse=True)

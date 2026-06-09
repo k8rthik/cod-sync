@@ -28,6 +28,8 @@ from typing import Literal
 
 from cod_sync import __version__, alt_name, cod, diff, errors, sources, sourcetag
 
+from . import _state
+
 # Re-exports — the deck-mutation logic lives in cli.apply but tests and
 # internal callers reach for these names through the `cli` namespace.
 from .apply import (  # noqa: F401
@@ -47,18 +49,6 @@ _CYAN = "\033[36m"
 _DIM = "\033[2m"
 _BOLD = "\033[1m"
 _RESET = "\033[0m"
-
-
-# Module-level quiet state — single-shot CLI, so threading `quiet: bool`
-# through ~10 function signatures would be churn for no benefit. Errors
-# (anything going to sys.stderr) ignore this flag.
-_QUIET = False
-
-
-def _say(msg: str = "") -> None:
-    """Print informational output unless --quiet is set."""
-    if not _QUIET:
-        print(msg)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -88,8 +78,7 @@ def main(argv: list[str] | None = None) -> int:
                         version=f"%(prog)s {__version__}")
     args = parser.parse_args(argv)
 
-    global _QUIET
-    _QUIET = args.quiet
+    _state._QUIET = args.quiet
 
     return _route(
         args.target,
@@ -245,12 +234,12 @@ def _sync_deck(
 
     if dry_run:
         if not changes:
-            _say(f"{indent}{_DIM}No differences.{_RESET}")
+            _state.say(f"{indent}{_DIM}No differences.{_RESET}")
         return SyncOutcome("dry_run", 0, False, False)
 
     if is_new_file:
         if not changes:
-            _say(f"{indent}{_DIM}Remote source is empty. Nothing to create.{_RESET}")
+            _state.say(f"{indent}{_DIM}Remote source is empty. Nothing to create.{_RESET}")
             return SyncOutcome("no_change", 0, False, False)
         if not yes:
             try:
@@ -260,7 +249,7 @@ def _sync_deck(
             except EOFError:
                 ans = "n"
             if ans not in ("", "y", "yes"):
-                _say(f"{indent}{_DIM}Aborted.{_RESET}")
+                _state.say(f"{indent}{_DIM}Aborted.{_RESET}")
                 return SyncOutcome("skipped", 0, False, False)
         approved = changes
     else:
@@ -352,15 +341,15 @@ def _sync_deck(
         and not tags_changed
     ):
         if not changes:
-            _say(f"{indent}{_DIM}No differences.{_RESET}")
+            _state.say(f"{indent}{_DIM}No differences.{_RESET}")
             return SyncOutcome("no_change", 0, False, False)
-        _say(f"{indent}{_DIM}No changes applied.{_RESET}")
+        _state.say(f"{indent}{_DIM}No changes applied.{_RESET}")
         return SyncOutcome("skipped", 0, False, False)
 
     cod.save(final_deck, cod_path)
 
     if is_new_file:
-        _say(f"{indent}{_BOLD}Wrote new deck to {cod_path}{_RESET}")
+        _state.say(f"{indent}{_BOLD}Wrote new deck to {cod_path}{_RESET}")
         return SyncOutcome(
             "created", len(approved), marker_changed, deckname_changed, banner_changed,
             tags_changed,
@@ -377,7 +366,7 @@ def _sync_deck(
         parts.append("banner")
     if tags_changed:
         parts.append("tags")
-    _say(f"{indent}{_BOLD}Wrote {' + '.join(parts)} to {cod_path}{_RESET}")
+    _state.say(f"{indent}{_BOLD}Wrote {' + '.join(parts)} to {cod_path}{_RESET}")
     return SyncOutcome(
         "updated", len(approved), marker_changed, deckname_changed, banner_changed,
         tags_changed,
@@ -452,7 +441,7 @@ def _sync_file(cod_path: str, url: str | None, *, yes: bool, dry_run: bool) -> i
                 file=sys.stderr,
             )
             return 2
-        _say(f"{_DIM}using stored URL: {url}{_RESET}")
+        _state.say(f"{_DIM}using stored URL: {url}{_RESET}")
 
     try:
         remote = sources.fetch(url)
@@ -490,7 +479,7 @@ def _create_from_bare_url(url: str, *, yes: bool, dry_run: bool) -> int:
     name = _sanitize_filename(remote.name) or "imported_deck"
     target = Path.cwd() / f"{name}.cod"
     if target.exists():
-        _say(f"{_DIM}syncing existing {target}{_RESET}")
+        _state.say(f"{_DIM}syncing existing {target}{_RESET}")
 
     return _sync_file(str(target), url, yes=yes, dry_run=dry_run)
 
@@ -570,10 +559,10 @@ def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool
 
     files = _find_cod_files(root, recursive=recursive)
     if not files:
-        _say(f"{_DIM}No .cod files found in {directory}{_RESET}")
+        _state.say(f"{_DIM}No .cod files found in {directory}{_RESET}")
         return 0
 
-    _say(f"{_BOLD}{len(files)} .cod file(s) in {directory}{_RESET}\n")
+    _state.say(f"{_BOLD}{len(files)} .cod file(s) in {directory}{_RESET}\n")
 
     stats = {"updated": 0, "no_change": 0, "skipped": 0, "errors": 0}
 
@@ -587,18 +576,18 @@ def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool
             continue
 
         rel = path.relative_to(root) if path.is_relative_to(root) else path
-        _say(f"{_CYAN}{_BOLD}{header} {rel}{_RESET}  {_DIM}— {deck.deckname or '(no name)'}{_RESET}")
+        _state.say(f"{_CYAN}{_BOLD}{header} {rel}{_RESET}  {_DIM}— {deck.deckname or '(no name)'}{_RESET}")
 
         stored = sourcetag.get_source_url(deck.comments)
         source: str | None
         if stored:
-            _say(f"  {_DIM}stored: {stored}{_RESET}")
+            _state.say(f"  {_DIM}stored: {stored}{_RESET}")
             decision = _ask_walk_stored(auto_yes=yes)
             if decision == "quit":
-                _say(f"  {_DIM}quitting walk{_RESET}\n")
+                _state.say(f"  {_DIM}quitting walk{_RESET}\n")
                 break
             if decision == "skip":
-                _say(f"  {_DIM}skipped{_RESET}\n")
+                _state.say(f"  {_DIM}skipped{_RESET}\n")
                 stats["skipped"] += 1
                 continue
             source = stored
@@ -608,10 +597,10 @@ def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool
             except EOFError:
                 entered = "q"
             if entered.lower() == "q":
-                _say(f"  {_DIM}quitting walk{_RESET}\n")
+                _state.say(f"  {_DIM}quitting walk{_RESET}\n")
                 break
             if not entered or entered.lower() == "s":
-                _say(f"  {_DIM}skipped{_RESET}\n")
+                _state.say(f"  {_DIM}skipped{_RESET}\n")
                 stats["skipped"] += 1
                 continue
             source = entered
@@ -635,11 +624,11 @@ def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool
             prompt_on_url_conflict=False,
             yes=yes, dry_run=dry_run, indent="  ",
         )
-        _say()
+        _state.say()
         stat_key = "no_change" if outcome.status == "dry_run" else outcome.status
         stats[stat_key] = stats.get(stat_key, 0) + 1
 
-    _say(
+    _state.say(
         f"{_BOLD}Done.{_RESET} "
         f"updated={stats['updated']}  "
         f"no-change={stats['no_change']}  "
@@ -707,7 +696,7 @@ def _color(change: diff.Change) -> str:
 
 
 def _print_summary(changes: list[diff.Change], indent: str = "") -> None:
-    if _QUIET:
+    if _state._QUIET:
         return
     by_zone: dict[str, list[diff.Change]] = {}
     for c in changes:
