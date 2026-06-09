@@ -201,6 +201,7 @@ class SyncOutcome:
     marker_changed: bool
     deckname_changed: bool
     banner_changed: bool = False
+    tags_changed: bool = False
 
 
 def _sync_deck(
@@ -208,6 +209,7 @@ def _sync_deck(
     cod_path: str,
     remote_zones: dict[str, dict[str, int]],
     remote_name: str | None,
+    remote_tags: tuple[str, ...],
     *,
     is_new_file: bool,
     url_to_remember: str | None,
@@ -313,12 +315,31 @@ def _sync_deck(
                 final_deck = replace(final_deck, banner_card_name=canonical)
                 banner_changed = True
 
+    # Union deck-level tags from the remote into the local set. Never destructive:
+    # local-only tags survive, and dedupe is case-insensitive but preserves the
+    # casing of whichever side introduced each tag.
+    tags_changed = False
+    if remote_tags:
+        local_tags = cod.tags_xml_to_list(final_deck.tags_xml)
+        seen = {t.casefold() for t in local_tags}
+        merged: list[str] = list(local_tags)
+        for t in remote_tags:
+            key = t.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(t)
+        if tuple(merged) != local_tags:
+            final_deck = replace(final_deck, tags_xml=cod.tags_list_to_xml(tuple(merged)))
+            tags_changed = True
+
     if (
         not is_new_file
         and not approved
         and not marker_changed
         and not deckname_changed
         and not banner_changed
+        and not tags_changed
     ):
         if not changes:
             _say(f"{indent}{_DIM}No differences.{_RESET}")
@@ -331,7 +352,8 @@ def _sync_deck(
     if is_new_file:
         _say(f"{indent}{_BOLD}Wrote new deck to {cod_path}{_RESET}")
         return SyncOutcome(
-            "created", len(approved), marker_changed, deckname_changed, banner_changed
+            "created", len(approved), marker_changed, deckname_changed, banner_changed,
+            tags_changed,
         )
 
     parts: list[str] = []
@@ -343,9 +365,12 @@ def _sync_deck(
         parts.append("deckname")
     if banner_changed:
         parts.append("banner")
+    if tags_changed:
+        parts.append("tags")
     _say(f"{indent}{_BOLD}Wrote {' + '.join(parts)} to {cod_path}{_RESET}")
     return SyncOutcome(
-        "updated", len(approved), marker_changed, deckname_changed, banner_changed
+        "updated", len(approved), marker_changed, deckname_changed, banner_changed,
+        tags_changed,
     )
 
 
@@ -382,7 +407,7 @@ def _sync_file(cod_path: str, url: str | None, *, yes: bool, dry_run: bool) -> i
         return 2
 
     _sync_deck(
-        deck, cod_path, remote.zones, remote.name,
+        deck, cod_path, remote.zones, remote.name, remote.tags,
         is_new_file=not exists,
         url_to_remember=url if _is_url(url) else None,
         prompt_deckname_on_mismatch=True,
@@ -539,7 +564,7 @@ def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool
             continue
 
         outcome = _sync_deck(
-            deck, str(path), remote.zones, remote.name,
+            deck, str(path), remote.zones, remote.name, remote.tags,
             is_new_file=False,
             url_to_remember=source if _is_url(source) else None,
             prompt_deckname_on_mismatch=False,

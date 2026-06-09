@@ -35,13 +35,6 @@ boundaries (routing, prompts, application logic, formatting) is a one-time
 refactor that lowers the cost of every future feature. Worth doing before
 the next two or three features land.
 
-### Sync tags
-
-Both source sites support tags or categories. Cockatrice supports a tags
-field. Today we round-trip whatever was already local but never pull from
-the remote. Syncing tags closes a gap between what users curate online and
-what shows up in Cockatrice.
-
 ### Walk-parity: deckname and URL-conflict prompts
 
 The single-file sync path prompts when the remote deckname differs from

@@ -59,7 +59,7 @@ def _canonicalize(deck: RemoteDeck) -> RemoteDeck:
             canonical = mapping.get(original, original)
             merged[canonical] = merged.get(canonical, 0) + qty
         new_zones[zone] = merged
-    return RemoteDeck(name=deck.name, zones=new_zones)
+    return RemoteDeck(name=deck.name, zones=new_zones, tags=deck.tags)
 
 
 def _looks_like_url(s: str) -> bool:

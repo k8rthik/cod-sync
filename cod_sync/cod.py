@@ -99,6 +99,30 @@ def _serialize_tags(tags_el: ET.Element) -> str:
     return raw.strip()
 
 
+def tags_xml_to_list(tags_xml: str) -> tuple[str, ...]:
+    """Extract the text of each <tag> child from a stored tags_xml blob.
+    Returns an empty tuple for the default `<tags/>` form."""
+    try:
+        root = ET.fromstring(tags_xml)
+    except ET.ParseError:
+        return ()
+    out: list[str] = []
+    for child in root.findall("tag"):
+        text = (child.text or "").strip()
+        if text:
+            out.append(text)
+    return tuple(out)
+
+
+def tags_list_to_xml(tags: tuple[str, ...]) -> str:
+    """Serialize a tag list to Cockatrice's `<tags><tag>NAME</tag>...</tags>`
+    form. Returns the self-closing `<tags/>` for an empty list."""
+    if not tags:
+        return "<tags/>"
+    inner = "".join(f"<tag>{_xml_text(t)}</tag>" for t in tags)
+    return f"<tags>{inner}</tags>"
+
+
 def _xml_attr(value: str) -> str:
     return (
         value.replace("&", "&amp;")

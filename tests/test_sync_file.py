@@ -16,11 +16,11 @@ URL = "https://www.moxfield.com/decks/abc123"
 URL_OTHER = "https://archidekt.com/decks/999"
 
 
-def _remote(zones, name=""):
-    return RemoteDeck(name=name, zones=zones)
+def _remote(zones, name="", tags=()):
+    return RemoteDeck(name=name, zones=zones, tags=tuple(tags))
 
 
-def _write_deck(path, deckname="", comments="", main=None, side=None):
+def _write_deck(path, deckname="", comments="", main=None, side=None, tags=()):
     zones = []
     if main:
         zones.append(cod.Zone(name="main", cards=tuple(
@@ -30,7 +30,12 @@ def _write_deck(path, deckname="", comments="", main=None, side=None):
         zones.append(cod.Zone(name="side", cards=tuple(
             cod.Card(name=n, quantity=q) for n, q in side.items()
         )))
-    deck = cod.Deck(deckname=deckname, comments=comments, zones=tuple(zones))
+    deck = cod.Deck(
+        deckname=deckname,
+        comments=comments,
+        zones=tuple(zones),
+        tags_xml=cod.tags_list_to_xml(tuple(tags)),
+    )
     cod.save(deck, str(path))
 
 
@@ -426,6 +431,146 @@ def test_existing_file_dry_run_writes_nothing(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
         lambda _src: _remote({"main": {"Sol Ring": 2}, "side": {}}, name="X"),
+    )
+
+    rc = cli._sync_file(str(cod_path), URL, yes=True, dry_run=True)
+
+    assert rc == 0
+    assert cod_path.read_text(encoding="utf-8") == before
+
+
+# ----- deck-level tag sync --------------------------------------------------
+
+
+def test_existing_file_unions_remote_tags_into_local(tmp_path, monkeypatch):
+    cod_path = tmp_path / "tags-union.cod"
+    _write_deck(cod_path, deckname="X", comments=f"cod-sync-source: {URL}",
+                main={"Sol Ring": 1}, tags=("Budget", "Combo"))
+
+    monkeypatch.setattr(
+        "cod_sync.cli.sources.fetch",
+        lambda _src: _remote(
+            {"main": {"Sol Ring": 1}, "side": {}},
+            name="X",
+            tags=("Combo", "EDH"),
+        ),
+    )
+
+    cli._sync_file(str(cod_path), URL, yes=True, dry_run=False)
+
+    assert cod.tags_xml_to_list(cod.load(str(cod_path)).tags_xml) == (
+        "Budget", "Combo", "EDH"
+    )
+
+
+def test_existing_file_tag_union_dedupes_case_insensitively(tmp_path, monkeypatch):
+    cod_path = tmp_path / "tags-case.cod"
+    _write_deck(cod_path, deckname="X", comments=f"cod-sync-source: {URL}",
+                main={"Sol Ring": 1}, tags=("Budget",))
+
+    monkeypatch.setattr(
+        "cod_sync.cli.sources.fetch",
+        lambda _src: _remote(
+            {"main": {"Sol Ring": 1}, "side": {}},
+            name="X",
+            tags=("budget", "Combo"),
+        ),
+    )
+
+    cli._sync_file(str(cod_path), URL, yes=True, dry_run=False)
+
+    # Local casing wins for the overlapping tag; new remote tag is appended.
+    assert cod.tags_xml_to_list(cod.load(str(cod_path)).tags_xml) == (
+        "Budget", "Combo"
+    )
+
+
+def test_existing_file_tag_subset_does_not_rewrite(tmp_path, monkeypatch):
+    cod_path = tmp_path / "tags-noop.cod"
+    _write_deck(cod_path, deckname="X", comments=f"cod-sync-source: {URL}",
+                main={"Sol Ring": 1}, tags=("Budget", "Combo"))
+    before = cod_path.read_text(encoding="utf-8")
+
+    monkeypatch.setattr(
+        "cod_sync.cli.sources.fetch",
+        lambda _src: _remote(
+            {"main": {"Sol Ring": 1}, "side": {}},
+            name="X",
+            tags=("Combo",),
+        ),
+    )
+
+    cli._sync_file(str(cod_path), URL, yes=True, dry_run=False)
+
+    assert cod_path.read_text(encoding="utf-8") == before
+
+
+def test_existing_file_no_remote_tags_leaves_local_untouched(tmp_path, monkeypatch):
+    cod_path = tmp_path / "tags-localonly.cod"
+    _write_deck(cod_path, deckname="X", comments=f"cod-sync-source: {URL}",
+                main={"Sol Ring": 1}, tags=("Budget",))
+
+    monkeypatch.setattr(
+        "cod_sync.cli.sources.fetch",
+        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="X"),
+    )
+
+    cli._sync_file(str(cod_path), URL, yes=True, dry_run=False)
+
+    assert cod.tags_xml_to_list(cod.load(str(cod_path)).tags_xml) == ("Budget",)
+
+
+def test_existing_file_remote_tags_only_still_triggers_write(tmp_path, monkeypatch):
+    """Local card list matches remote, but remote brings new tags. The file
+    must be rewritten because the diff in tag set is itself a change."""
+    cod_path = tmp_path / "tags-only.cod"
+    _write_deck(cod_path, deckname="X", comments=f"cod-sync-source: {URL}",
+                main={"Sol Ring": 1})
+
+    monkeypatch.setattr(
+        "cod_sync.cli.sources.fetch",
+        lambda _src: _remote(
+            {"main": {"Sol Ring": 1}, "side": {}},
+            name="X",
+            tags=("Budget",),
+        ),
+    )
+
+    cli._sync_file(str(cod_path), URL, yes=True, dry_run=False)
+
+    assert cod.tags_xml_to_list(cod.load(str(cod_path)).tags_xml) == ("Budget",)
+
+
+def test_new_file_uses_remote_tags(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "cod_sync.cli.sources.fetch",
+        lambda _src: _remote(
+            {"main": {"Sol Ring": 1}, "side": {}},
+            name="Imported",
+            tags=("EDH", "Budget"),
+        ),
+    )
+    cod_path = tmp_path / "fresh-tags.cod"
+    cli._sync_file(str(cod_path), URL, yes=True, dry_run=False)
+
+    assert cod.tags_xml_to_list(cod.load(str(cod_path)).tags_xml) == (
+        "EDH", "Budget"
+    )
+
+
+def test_existing_file_dry_run_does_not_apply_tag_union(tmp_path, monkeypatch):
+    cod_path = tmp_path / "tags-dry.cod"
+    _write_deck(cod_path, deckname="X", comments=f"cod-sync-source: {URL}",
+                main={"Sol Ring": 1}, tags=("Budget",))
+    before = cod_path.read_text(encoding="utf-8")
+
+    monkeypatch.setattr(
+        "cod_sync.cli.sources.fetch",
+        lambda _src: _remote(
+            {"main": {"Sol Ring": 1}, "side": {}},
+            name="X",
+            tags=("Combo",),
+        ),
     )
 
     rc = cli._sync_file(str(cod_path), URL, yes=True, dry_run=True)

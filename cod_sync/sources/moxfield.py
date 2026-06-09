@@ -41,12 +41,32 @@ def fetch(url: str) -> RemoteDeck:
     )
     resp.raise_for_status()
     data = resp.json()
-    return RemoteDeck(name=_extract_name(data), zones=_parse(data))
+    return RemoteDeck(name=_extract_name(data), zones=_parse(data), tags=_extract_tags(data))
 
 
 def _extract_name(data: dict[str, Any]) -> str:
     raw = data.get("name") or ""
     return raw.strip()
+
+
+def _extract_tags(data: dict[str, Any]) -> tuple[str, ...]:
+    """Moxfield's deck-level tags live in `hubs` — themes/format labels at
+    the deck level, distinct from per-card `tags`. Each hub is a `{name, slug}`
+    object; we keep the human-readable `name`."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for entry in data.get("hubs") or []:
+        if not isinstance(entry, dict):
+            continue
+        name = (entry.get("name") or "").strip()
+        if not name:
+            continue
+        key = name.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(name)
+    return tuple(out)
 
 
 def _extract_id(url: str) -> str:
