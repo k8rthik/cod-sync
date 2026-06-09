@@ -111,6 +111,7 @@ Before bumping, an agent must:
 
 | Version | Tier   | What changed                                                                 |
 |---------|--------|------------------------------------------------------------------------------|
+| 0.11.0  | MINOR  | Directory walk now prompts on deckname mismatches the way single-file sync already did, instead of silently ignoring them. `_sync_deck`'s per-mode policy knobs were deleted; sync, import, and walk share one identical per-deck code path. `-y` still means accept-all in every mode. |
 | 0.10.0  | MINOR  | Source-fetch failures now render type-specific messages (deck-not-found, private, rate-limited, server-error, network, malformed-response, invalid-source) instead of a single collapsed "failed to fetch" line, so the message tells the user what to do about it. Exit codes unchanged. |
 | 0.9.0   | MINOR  | Deck-level tags now sync from the remote into the .cod's `<tags>` block (Archidekt `deckTags`, Moxfield `hubs`), unioned with local tags so user-added tags survive. Previously the field was round-tripped but never populated from upstream. |
 | 0.8.1   | PATCH  | Diff now surfaces stale "Front // Back" local entries as remove + add so pre-0.8.0 .cod files heal to the front face on next sync. Prior behavior actively suppressed the heal — qualifies as PATCH per the "obviously broken" rule. |
