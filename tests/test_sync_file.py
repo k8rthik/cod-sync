@@ -183,16 +183,20 @@ def test_dfc_imported_as_front_face_only(tmp_path, monkeypatch):
 
 
 def test_fetch_failure_returns_error_for_new_file(tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(
-        "cod_sync.cli.sources.fetch",
-        lambda _src: (_ for _ in ()).throw(ValueError("nope")),
-    )
+    from cod_sync import errors
+
+    def boom(_src):
+        raise errors.DeckNotFoundError(URL)
+
+    monkeypatch.setattr("cod_sync.cli.sources.fetch", boom)
     cod_path = tmp_path / "broken.cod"
     rc = cli._sync_file(str(cod_path), URL, yes=True, dry_run=False)
 
     assert rc == 2
     assert not cod_path.exists()
-    assert "failed to fetch" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "deck not found" in err
+    assert "404" in err
 
 
 # ----- existing file (formerly `sync`) --------------------------------------

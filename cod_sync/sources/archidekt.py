@@ -13,7 +13,7 @@ from typing import Any
 
 import requests
 
-from .. import dfc
+from .. import dfc, errors
 from .types import RemoteDeck
 
 _API_BASE = "https://archidekt.com/api/decks/"
@@ -28,13 +28,22 @@ _SIDE_CATEGORIES = {"sideboard", "commander", "companion"}
 
 def fetch(url: str) -> RemoteDeck:
     deck_id = _extract_id(url)
-    resp = requests.get(
-        f"{_API_BASE}{deck_id}/",
-        headers={"User-Agent": _USER_AGENT, "Accept": "application/json"},
-        timeout=20,
-    )
-    resp.raise_for_status()
-    data = resp.json()
+    try:
+        resp = requests.get(
+            f"{_API_BASE}{deck_id}/",
+            headers={"User-Agent": _USER_AGENT, "Accept": "application/json"},
+            timeout=20,
+        )
+    except (requests.ConnectionError, requests.Timeout) as e:
+        raise errors.NetworkError(url, cause=type(e).__name__) from e
+    except requests.RequestException as e:
+        raise errors.NetworkError(url, cause=str(e) or type(e).__name__) from e
+    if not resp.ok:
+        raise errors.from_http_response(url, resp)
+    try:
+        data = resp.json()
+    except ValueError as e:
+        raise errors.MalformedResponseError(url, reason="invalid JSON") from e
     return RemoteDeck(name=_extract_name(data), zones=_parse(data), tags=_extract_tags(data))
 
 
@@ -69,7 +78,7 @@ def _extract_tags(data: dict[str, Any]) -> tuple[str, ...]:
 def _extract_id(url: str) -> str:
     m = _DECK_ID_RE.search(url)
     if not m:
-        raise ValueError(f"Could not extract Archidekt deck id from URL: {url}")
+        raise errors.InvalidSourceError(url, reason="could not extract Archidekt deck id")
     return m.group(1)
 
 

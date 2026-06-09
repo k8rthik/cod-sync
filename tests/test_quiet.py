@@ -107,13 +107,15 @@ def test_quiet_suppresses_walk_banner_and_stats(tmp_path, monkeypatch, capsys):
 
 
 def test_quiet_preserves_fetch_error_on_stderr(tmp_path, monkeypatch, capsys):
+    from cod_sync import errors
+
     cod_path = tmp_path / "deck.cod"
     _write_deck(cod_path, deckname="x",
                 comments=sourcetag.set_source_url("", URL),
                 main={"Sol Ring": 1})
 
     def boom(_src):
-        raise RuntimeError("network unreachable")
+        raise errors.NetworkError(URL, cause="network unreachable")
 
     monkeypatch.setattr("cod_sync.cli.sources.fetch", boom)
 
@@ -126,13 +128,15 @@ def test_quiet_preserves_fetch_error_on_stderr(tmp_path, monkeypatch, capsys):
 
 
 def test_quiet_preserves_walk_fetch_error_on_stderr(tmp_path, monkeypatch, capsys):
+    from cod_sync import errors
+
     cod_path = tmp_path / "deck.cod"
     _write_deck(cod_path, deckname="x",
                 comments=sourcetag.set_source_url("", URL),
                 main={"Sol Ring": 1})
 
     def boom(_src):
-        raise RuntimeError("rate limited")
+        raise errors.RateLimitedError(URL)
 
     monkeypatch.setattr("cod_sync.cli.sources.fetch", boom)
 

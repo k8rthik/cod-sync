@@ -26,7 +26,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal
 
-from cod_sync import __version__, alt_name, cod, diff, sources, sourcetag
+from cod_sync import __version__, alt_name, cod, diff, errors, sources, sourcetag
 
 
 # ANSI colors
@@ -374,6 +374,50 @@ def _sync_deck(
     )
 
 
+# ----- source-error formatting ----------------------------------------------
+
+
+def _format_source_error(e: errors.SourceError) -> str:
+    """Render a source-fetch error with a per-type template.
+
+    Each branch maps to a distinct user remedy, so the message tells the
+    user what to do instead of just "something went wrong."
+    """
+    if isinstance(e, errors.DeckNotFoundError):
+        return (
+            f"error: deck not found at {e.source} (HTTP 404). "
+            f"the deck may have been deleted, or the URL may be wrong."
+        )
+    if isinstance(e, errors.DeckPrivateError):
+        return (
+            f"error: deck at {e.source} is private or requires login (HTTP 401/403)."
+        )
+    if isinstance(e, errors.RateLimitedError):
+        hint = f" retry-after: {e.retry_after}s." if e.retry_after else ""
+        return (
+            f"error: rate limited by source at {e.source} (HTTP 429). "
+            f"try again in a minute.{hint}"
+        )
+    if isinstance(e, errors.RemoteServerError):
+        return (
+            f"error: source server error at {e.source} (HTTP {e.status}). "
+            f"the site may be having issues; try again later."
+        )
+    if isinstance(e, errors.NetworkError):
+        return (
+            f"error: network error reaching {e.source}: {e.cause}. "
+            f"check your connection."
+        )
+    if isinstance(e, errors.MalformedResponseError):
+        return (
+            f"error: unexpected response from {e.source}: {e.reason}. "
+            f"the source API may have changed; please file a bug."
+        )
+    if isinstance(e, errors.InvalidSourceError):
+        return f"error: invalid source {e.source}: {e.reason}."
+    return f"error: failed to fetch {e.source}: {e}"
+
+
 # ----- single-file sync (unified sync + import) -----------------------------
 
 
@@ -402,6 +446,9 @@ def _sync_file(cod_path: str, url: str | None, *, yes: bool, dry_run: bool) -> i
 
     try:
         remote = sources.fetch(url)
+    except errors.SourceError as e:
+        print(_format_source_error(e), file=sys.stderr)
+        return 2
     except Exception as e:
         print(f"error: failed to fetch {url}: {e}", file=sys.stderr)
         return 2
@@ -423,6 +470,9 @@ def _sync_file(cod_path: str, url: str | None, *, yes: bool, dry_run: bool) -> i
 def _create_from_bare_url(url: str, *, yes: bool, dry_run: bool) -> int:
     try:
         remote = sources.fetch(url)
+    except errors.SourceError as e:
+        print(_format_source_error(e), file=sys.stderr)
+        return 2
     except Exception as e:
         print(f"error: failed to fetch {url}: {e}", file=sys.stderr)
         return 2
@@ -558,6 +608,10 @@ def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool
 
         try:
             remote = sources.fetch(source)
+        except errors.SourceError as e:
+            print(f"  {_format_source_error(e)}", file=sys.stderr)
+            stats["errors"] += 1
+            continue
         except Exception as e:
             print(f"  fetch failed: {e}", file=sys.stderr)
             stats["errors"] += 1

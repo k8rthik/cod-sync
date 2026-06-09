@@ -111,16 +111,19 @@ def test_syncs_existing_target_against_url(tmp_path, monkeypatch, capsys):
 
 
 def test_fetch_failure_returns_error(tmp_path, monkeypatch, capsys):
+    from cod_sync import errors
+
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(
-        "cod_sync.cli.sources.fetch",
-        lambda _src: (_ for _ in ()).throw(ValueError("nope")),
-    )
+
+    def boom(_src):
+        raise errors.DeckPrivateError(URL)
+
+    monkeypatch.setattr("cod_sync.cli.sources.fetch", boom)
 
     rc = cli._create_from_bare_url(URL, yes=True, dry_run=False)
 
     assert rc == 2
-    assert "failed to fetch" in capsys.readouterr().err
+    assert "private" in capsys.readouterr().err
     assert list(tmp_path.iterdir()) == []
 
 

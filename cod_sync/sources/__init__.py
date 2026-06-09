@@ -16,6 +16,7 @@ import re
 from urllib.parse import urlparse
 
 from .. import alt_name
+from ..errors import InvalidSourceError
 from . import archidekt, moxfield, text
 from .types import RemoteDeck, Zones
 
@@ -35,13 +36,13 @@ def _fetch_raw(source: str) -> RemoteDeck:
             return moxfield.fetch(source)
         if "archidekt.com" in host:
             return archidekt.fetch(source)
-        raise ValueError(f"Unsupported deck site: {host}")
+        raise InvalidSourceError(source, reason=f"unsupported deck site: {host or '(no host)'}")
 
     if os.path.isfile(source):
         with open(source, encoding="utf-8") as f:
             return RemoteDeck(name="", zones=text.parse(f.read()))
 
-    raise ValueError(f"Source is neither a known URL nor a readable file: {source!r}")
+    raise InvalidSourceError(source, reason="not a known URL or readable file")
 
 
 def _canonicalize(deck: RemoteDeck) -> RemoteDeck:
