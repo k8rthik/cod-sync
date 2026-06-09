@@ -112,3 +112,51 @@ Keep the body short — the feature commit explains the change in detail; the bu
 - The CLI's public contract surface is documented in `VERSIONING.md` under "The contract we version" — CLI grammar, `.cod` output, cache schema. Changes touching any of those need careful tier classification.
 - The `_seed_data.py` file is a generated artifact from `scripts/refresh_seed.py`. Don't hand-edit it; if a reskin mapping needs to change, fix the generator or the runtime alt_name layer.
 - DFC normalization is layered: source fetchers strip first (`cod_sync/sources/*.py`), alt_name strips again at its output (`cod_sync/alt_name.py`), and `_reconcile_dfc_names` in `cod_sync/diff.py` handles any residual mismatch between local and remote. Front-face-only is the canonical shape everywhere — Cockatrice cannot read the full `Front // Back` form.
+
+## Local dev environment notes
+
+Operational gotchas you'll hit mid-session if you're not prepared for them. CONTRIBUTING.md is the human-facing tour; the items below are agent-specific.
+
+### Pre-commit hooks are armed
+
+`pre-commit install` has been run in this clone, so commits trigger ruff (lint + format) and mypy, and pushes additionally run pytest. When a hook **auto-fixes** a file (ruff `--fix`, end-of-file-fixer, trailing-whitespace), the commit aborts and the fixes land in the working tree. **Always re-stage the fixed paths and re-commit** — don't `--amend` (the prior commit didn't happen) and don't `--no-verify` to shove it through.
+
+If you see "files were modified by this hook" — the hook did the work for you; just `git add` the changes and re-run the commit. The hook will pass on the second try.
+
+### Format-version drift between local ruff and the hook
+
+`pyproject.toml`'s dev dep is `ruff>=0.6` (floats to latest); `.pre-commit-config.yaml` pins a specific ruff version via `ruff-pre-commit`'s `rev:`. If those drift far apart, `ruff format` will produce different output between your local install and the pre-commit hook — visible as files getting reformatted back and forth across commits.
+
+Fix: `pre-commit autoupdate` floats the pin to the latest tagged hook revision. Do this when:
+- A commit hook reformats files that `ruff format --check` (run from the venv) says are clean, or vice versa.
+- A new ruff release ships meaningful formatter changes.
+
+After `autoupdate`, re-run `pre-commit run --all-files` to catch any newly-flagged style.
+
+### Hook id naming
+
+`ruff-pre-commit` renamed `id: ruff` to `id: ruff-check` (the old id still works as a legacy alias and emits a deprecation warning). Use `ruff-check` in `.pre-commit-config.yaml`.
+
+### `core.hooksPath` and pre-commit installation
+
+`pre-commit install` refuses to run when `git config core.hooksPath` is set (even if its value is the default `.git/hooks`). If you `git clone` this repo on a machine whose global git config sets `core.hooksPath`, you'll need `git config --unset-all core.hooksPath` in the local clone before `pre-commit install` succeeds. This is local-only; doesn't affect other repos.
+
+This is the **one** sanctioned exception to "never update git config" — it's repo-local, it removes a redundant override, and the alternative is a non-functional pre-commit setup. Surface it to the user before doing it anyway.
+
+### Release workflow validates tag vs. version
+
+`.github/workflows/release.yml` fires on `v*` tag push and **fails the build if the tag (minus the `v`) doesn't match `pyproject.toml`'s `version`**. So the workflow for cutting a release is:
+
+1. Feature commit + bump commit land on `main` (per the existing CLAUDE.md rules).
+2. `git tag vX.Y.Z` where X.Y.Z matches the bump.
+3. `git push origin vX.Y.Z`.
+
+Tag-then-bump or tag-with-wrong-version won't ship — the release job will fail loudly and you'll have to retag.
+
+### CI shape
+
+`.github/workflows/ci.yml` is two jobs: `lint` (single Python 3.12, runs `ruff check` / `ruff format --check` / `mypy`) and `test` (matrix on 3.10–3.13, runs `pytest`). The pre-push checklist mirrors what `lint` enforces; if CI's `lint` is red but your local pre-commit is green, suspect a ruff version drift (see above).
+
+### Network tests
+
+`tests/integration/test_sources_network.py` makes live HTTP calls to Moxfield and Archidekt. Gated behind `COD_SYNC_RUN_NETWORK_TESTS=1` (wired in `tests/conftest.py`), so the default test run stays offline and fast. If you're touching either source fetcher, run them: `COD_SYNC_RUN_NETWORK_TESTS=1 pytest tests/integration -q`.
