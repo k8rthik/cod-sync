@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import sys
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -66,6 +65,15 @@ from .prompts import (  # noqa: F401
     _confirm,
     _names_differ,
     _review,
+)
+
+# Re-exports — path/url helpers live in cli.routing. _route uses the
+# bare names; nothing else patches these but symmetry keeps the
+# pattern consistent.
+from .routing import (  # noqa: F401
+    _ensure_cod_suffix,
+    _is_url,
+    _resolve_deck_path,
 )
 
 
@@ -183,26 +191,6 @@ def _route_info(target: str | None, url: str | None) -> int:
         print(f"error: deck file not found: {target}", file=sys.stderr)
         return 2
     return _show_info(resolved)
-
-
-_URL_RE = re.compile(r"^https?://", re.IGNORECASE)
-
-
-def _is_url(s: str) -> bool:
-    return bool(_URL_RE.match(s))
-
-
-def _resolve_deck_path(name: str) -> str | None:
-    if os.path.exists(name):
-        return name
-    with_suffix = name if name.endswith(".cod") else name + ".cod"
-    if with_suffix != name and os.path.exists(with_suffix):
-        return with_suffix
-    return None
-
-
-def _ensure_cod_suffix(name: str) -> str:
-    return name if name.endswith(".cod") else name + ".cod"
 
 
 # ----- per-deck sync core ---------------------------------------------------
