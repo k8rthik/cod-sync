@@ -45,12 +45,14 @@ The working tree often contains parallel work that the user is doing in another 
 
 Before pushing, in this order:
 
-1. `python -m pytest -q` — must be green. Report the count.
-2. If `pyproject.toml` has `[tool.mypy]` configured, `python -m mypy` — must be green.
-3. `git status` — confirm you're only pushing what you intend to push.
-4. `grep -n "0\.[0-9]" pyproject.toml cod_sync/__init__.py` — confirm both version strings match.
+1. `python -m ruff check` — must be clean.
+2. `python -m ruff format --check` — must be clean.
+3. `python -m mypy` — must be green.
+4. `python -m pytest -q` — must be green. Report the count.
+5. `git status` — confirm you're only pushing what you intend to push.
+6. `grep -n "0\.[0-9]" pyproject.toml cod_sync/__init__.py` — confirm both version strings match.
 
-If anything is red, fix it before pushing. Do not skip hooks (`--no-verify`) to get a push through.
+If anything is red, fix it before pushing. Do not skip hooks (`--no-verify`) to get a push through. The pre-commit + pre-push hooks (see `.pre-commit-config.yaml`) run the same gates locally; CI re-runs them on push.
 
 ## Versioning
 
