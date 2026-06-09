@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import sys
 
-from cod_sync import cod, diff, sourcetag
+from cod_sync import cod, diff, errors, sourcetag
 
 from . import _state
 
@@ -38,6 +38,47 @@ def _print_summary(changes: list[diff.Change], indent: str = "") -> None:
         for c in items:
             print(f"{indent}    {_color(c)}{c.describe()}{_RESET}")
     print()
+
+
+def _format_source_error(e: errors.SourceError) -> str:
+    """Render a source-fetch error with a per-type template.
+
+    Each branch maps to a distinct user remedy, so the message tells the
+    user what to do instead of just "something went wrong."
+    """
+    if isinstance(e, errors.DeckNotFoundError):
+        return (
+            f"error: deck not found at {e.source} (HTTP 404). "
+            f"the deck may have been deleted, or the URL may be wrong."
+        )
+    if isinstance(e, errors.DeckPrivateError):
+        return (
+            f"error: deck at {e.source} is private or requires login (HTTP 401/403)."
+        )
+    if isinstance(e, errors.RateLimitedError):
+        hint = f" retry-after: {e.retry_after}s." if e.retry_after else ""
+        return (
+            f"error: rate limited by source at {e.source} (HTTP 429). "
+            f"try again in a minute.{hint}"
+        )
+    if isinstance(e, errors.RemoteServerError):
+        return (
+            f"error: source server error at {e.source} (HTTP {e.status}). "
+            f"the site may be having issues; try again later."
+        )
+    if isinstance(e, errors.NetworkError):
+        return (
+            f"error: network error reaching {e.source}: {e.cause}. "
+            f"check your connection."
+        )
+    if isinstance(e, errors.MalformedResponseError):
+        return (
+            f"error: unexpected response from {e.source}: {e.reason}. "
+            f"the source API may have changed; please file a bug."
+        )
+    if isinstance(e, errors.InvalidSourceError):
+        return f"error: invalid source {e.source}: {e.reason}."
+    return f"error: failed to fetch {e.source}: {e}"
 
 
 def _sanitize_filename(title: str) -> str:
