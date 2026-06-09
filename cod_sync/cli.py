@@ -296,15 +296,22 @@ def _sync_deck(
                 final_deck = replace(final_deck, comments=new_comments)
                 marker_changed = True
 
-    # Banner lives on the local deck (user-set in Cockatrice). If it's a
-    # reskin flavor name, Cockatrice can't render it — run it through the
-    # same alt-name layer the card list goes through at fetch time.
+    # Banner lives on the local deck (user-set in Cockatrice). Only rewrite
+    # it when it's genuinely orphaned — i.e. the canonical name is already
+    # in the post-apply card list AND the original (reskin) name is NOT.
+    # In that state the banner used to reference a card in the deck and
+    # got stranded when the card list was canonicalized; restoring the
+    # link preserves the user's intent. Any other state (reskin still in
+    # the deck, custom override, unknown name) leaves the banner alone.
     banner_changed = False
     if final_deck.banner_card_name:
-        canonical = alt_name.canonicalize(final_deck.banner_card_name)
-        if canonical != final_deck.banner_card_name:
-            final_deck = replace(final_deck, banner_card_name=canonical)
-            banner_changed = True
+        original = final_deck.banner_card_name
+        canonical = alt_name.canonicalize(original)
+        if canonical != original:
+            card_names = {c.name for z in final_deck.zones for c in z.cards}
+            if canonical in card_names and original not in card_names:
+                final_deck = replace(final_deck, banner_card_name=canonical)
+                banner_changed = True
 
     if (
         not is_new_file
