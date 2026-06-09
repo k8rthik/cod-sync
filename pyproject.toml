@@ -18,6 +18,11 @@ cod-sync = "cod_sync.cli:main"
 [tool.setuptools.packages.find]
 include = ["cod_sync*"]
 
+[tool.pytest.ini_options]
+markers = [
+    "network: opt-in tests that hit live third-party deck APIs; gated behind COD_SYNC_RUN_NETWORK_TESTS=1",
+]
+
 [tool.mypy]
 python_version = "3.10"
 files = ["cod_sync", "tests"]
