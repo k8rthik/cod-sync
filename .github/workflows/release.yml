@@ -1,0 +1,42 @@
+name: release
+
+# Fires when a tag of the form `vX.Y.Z` is pushed. Builds the wheel +
+# sdist and attaches them to a GitHub Release named after the tag.
+# No PyPI publish — cod-sync isn't on PyPI today; see VERSIONING.md.
+#
+# To cut a release after a bump commit lands on main:
+#   git tag v0.11.0
+#   git push origin v0.11.0
+# Tagging stays a deliberate human action per CLAUDE.md / VERSIONING.md.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install build
+      - run: python -m build
+      - name: Verify built version matches tag
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg_version=$(grep -E '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/')
+          if [ "$tag" != "$pkg_version" ]; then
+            echo "tag $tag does not match pyproject.toml version $pkg_version" >&2
+            exit 1
+          fi
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
