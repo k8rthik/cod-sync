@@ -6,6 +6,7 @@ the per-deck work to ``_sync_deck``. Per-deck behavior is identical to
 single-file sync — including deckname-mismatch and URL-conflict
 prompts, which can fire mid-loop. Pass ``-y`` to accept-all.
 """
+
 from __future__ import annotations
 
 import sys
@@ -45,7 +46,9 @@ def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool
             continue
 
         rel = path.relative_to(root) if path.is_relative_to(root) else path
-        _state.say(f"{_CYAN}{_BOLD}{header} {rel}{_RESET}  {_DIM}— {deck.deckname or '(no name)'}{_RESET}")
+        _state.say(
+            f"{_CYAN}{_BOLD}{header} {rel}{_RESET}  {_DIM}— {deck.deckname or '(no name)'}{_RESET}"
+        )
 
         stored = sourcetag.get_source_url(deck.comments)
         source: str | None
@@ -86,10 +89,16 @@ def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool
             continue
 
         outcome = _sync_deck(
-            deck, str(path), remote.zones, remote.name, remote.tags,
+            deck,
+            str(path),
+            remote.zones,
+            remote.name,
+            remote.tags,
             is_new_file=False,
             url_to_remember=source if _is_url(source) else None,
-            yes=yes, dry_run=dry_run, indent="  ",
+            yes=yes,
+            dry_run=dry_run,
+            indent="  ",
         )
         _state.say()
         stat_key = "no_change" if outcome.status == "dry_run" else outcome.status

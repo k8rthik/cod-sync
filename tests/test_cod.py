@@ -70,9 +70,7 @@ def test_tags_list_to_xml_serializes_tag_children():
 
 def test_tags_list_to_xml_escapes_special_chars():
     # Element text only needs &, <, > escaped — quotes are literal in text content.
-    assert cod.tags_list_to_xml(("A & <B>",)) == (
-        "<tags><tag>A &amp; &lt;B&gt;</tag></tags>"
-    )
+    assert cod.tags_list_to_xml(("A & <B>",)) == ("<tags><tag>A &amp; &lt;B&gt;</tag></tags>")
 
 
 def test_tags_helpers_round_trip():
@@ -84,15 +82,15 @@ def test_load_dump_preserves_populated_tags_block(tmp_path):
     src = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<cockatrice_deck version="1">\n'
-        '    <lastLoadedTimestamp></lastLoadedTimestamp>\n'
-        '    <deckname>Tagged</deckname>\n'
-        '    <format></format>\n'
-        '    <comments></comments>\n'
-        '    <tags><tag>Budget</tag><tag>Combo</tag></tags>\n'
+        "    <lastLoadedTimestamp></lastLoadedTimestamp>\n"
+        "    <deckname>Tagged</deckname>\n"
+        "    <format></format>\n"
+        "    <comments></comments>\n"
+        "    <tags><tag>Budget</tag><tag>Combo</tag></tags>\n"
         '    <zone name="main">\n'
         '        <card number="1" name="Sol Ring"/>\n'
-        '    </zone>\n'
-        '</cockatrice_deck>\n'
+        "    </zone>\n"
+        "</cockatrice_deck>\n"
     )
     path = tmp_path / "tagged.cod"
     path.write_text(src, encoding="utf-8")

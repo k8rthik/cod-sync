@@ -6,6 +6,7 @@ URL forms:
 
 API: https://archidekt.com/api/decks/<id>/
 """
+
 from __future__ import annotations
 
 import re

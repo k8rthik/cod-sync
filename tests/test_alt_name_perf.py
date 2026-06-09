@@ -10,6 +10,7 @@ Scryfall.
 When a target trips here, the failure is almost always one of those
 invariants regressing, not actual wall-clock drift.
 """
+
 from __future__ import annotations
 
 import json
@@ -18,7 +19,6 @@ import time
 import pytest
 
 from cod_sync import alt_name
-
 
 # ----- structural invariants (the ones that drive latency) ------------------
 
@@ -154,7 +154,7 @@ def test_offline_batch_under_target(size, monkeypatch, tmp_path):
     elapsed = _measure(lambda: alt_name.canonicalize_batch(names))
     per_card_us = elapsed * 1_000_000 / size
     assert elapsed < 0.05, (
-        f"Hot batch of {size} cards took {elapsed*1000:.2f}ms "
+        f"Hot batch of {size} cards took {elapsed * 1000:.2f}ms "
         f"({per_card_us:.1f}us/card). Target: under 50ms total."
     )
 
@@ -167,7 +167,7 @@ def test_seed_lookup_throughput(monkeypatch, tmp_path):
     elapsed = _measure(lambda: alt_name.canonicalize("Unstable Harmonics"), repeats=1000)
     per_call_us = elapsed * 1000  # ms per 1000 calls = us per call
     assert elapsed < 0.5, (
-        f"1000 seed lookups took {elapsed*1000:.1f}ms "
+        f"1000 seed lookups took {elapsed * 1000:.1f}ms "
         f"({per_call_us:.1f}us/call). Target: well under 500ms."
     )
 
@@ -182,14 +182,12 @@ def test_directory_walk_simulation(monkeypatch, tmp_path):
     # 15 decks, each 100 cards. Half overlap with the previous deck.
     decks = []
     for i in range(15):
-        deck = [f"Shared {j}" for j in range(50)] + [
-            f"Unique deck{i} card{j}" for j in range(50)
-        ]
+        deck = [f"Shared {j}" for j in range(50)] + [f"Unique deck{i} card{j}" for j in range(50)]
         decks.append(deck)
 
     elapsed = _measure(lambda: [alt_name.canonicalize_batch(d) for d in decks])
     assert elapsed < 0.5, (
-        f"15-deck walk simulation took {elapsed*1000:.1f}ms; "
+        f"15-deck walk simulation took {elapsed * 1000:.1f}ms; "
         "expect well under 500ms with proper cross-call memoization."
     )
 
@@ -229,6 +227,4 @@ def test_cache_write_is_single_per_batch(monkeypatch, tmp_path):
     # 200 unknowns: 3 Scryfall chunks of 75/75/50.
     alt_name.canonicalize_batch([f"Unknown {i}" for i in range(200)])
 
-    assert writes[0] == 1, (
-        f"200-card batch wrote disk {writes[0]} times; should be 1."
-    )
+    assert writes[0] == 1, f"200-card batch wrote disk {writes[0]} times; should be 1."

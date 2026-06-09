@@ -3,13 +3,13 @@
 Picks a filename from the remote's title, writes it in cwd, then defers to
 `_sync_file` for the actual deck construction.
 """
+
 from __future__ import annotations
 
 import pytest
 
 from cod_sync import cli, cod
 from cod_sync.sources import RemoteDeck
-
 
 URL = "https://www.moxfield.com/decks/abc123"
 
@@ -45,8 +45,9 @@ def test_lowercases_and_drops_punctuation(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}},
-                             name="Storm/the/Vault: A Deck!"),
+        lambda _src: _remote(
+            {"main": {"Sol Ring": 1}, "side": {}}, name="Storm/the/Vault: A Deck!"
+        ),
     )
 
     cli._create_from_bare_url(URL, yes=True, dry_run=False)
@@ -70,8 +71,7 @@ def test_falls_back_when_title_is_all_punctuation(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}},
-                             name="!!!???"),
+        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="!!!???"),
     )
 
     cli._create_from_bare_url(URL, yes=True, dry_run=False)
@@ -84,9 +84,10 @@ def test_syncs_existing_target_against_url(tmp_path, monkeypatch, capsys):
     instead of refusing — that's what the user wants from `cod-sync <URL>`
     when they've already imported the deck once."""
     monkeypatch.chdir(tmp_path)
-    existing = cod.Deck(deckname="Atraxa", zones=(
-        cod.Zone(name="main", cards=(cod.Card(name="Sol Ring", quantity=1),)),
-    ))
+    existing = cod.Deck(
+        deckname="Atraxa",
+        zones=(cod.Zone(name="main", cards=(cod.Card(name="Sol Ring", quantity=1),)),),
+    )
     cod.save(existing, str(tmp_path / "atraxa.cod"))
 
     monkeypatch.setattr(

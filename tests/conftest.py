@@ -8,6 +8,7 @@ Also wires the `network` marker: tests marked `@pytest.mark.network` make
 real HTTP requests to third-party deck sites and are skipped by default;
 set COD_SYNC_RUN_NETWORK_TESTS=1 to opt in.
 """
+
 from __future__ import annotations
 
 import os

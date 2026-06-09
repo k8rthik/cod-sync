@@ -10,13 +10,36 @@ requires-python = ">=3.10"
 dependencies = ["requests>=2.31"]
 
 [project.optional-dependencies]
-dev = ["pytest>=7", "mypy>=1.8", "types-requests"]
+dev = [
+    "pytest>=7",
+    "mypy>=1.8",
+    "types-requests",
+    "ruff>=0.6",
+    "pre-commit>=3.7",
+]
 
 [project.scripts]
 cod-sync = "cod_sync.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["cod_sync*"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+# Conservative starter set:
+#   E/W = pycodestyle errors/warnings
+#   F   = pyflakes
+#   I   = isort
+#   UP  = pyupgrade (py310+ idioms)
+# Broaden incrementally; keep "zero violations" the bar for landing.
+select = ["E", "F", "W", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Generated artifact — refresh_seed.py rewrites this file mechanically.
+"cod_sync/_seed_data.py" = ["E501", "I001"]
 
 [tool.pytest.ini_options]
 markers = [

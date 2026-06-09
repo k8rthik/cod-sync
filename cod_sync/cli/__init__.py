@@ -16,6 +16,7 @@ Flags:
   -r / --recursive  recurse into subdirectories (only valid with a directory target)
   -i / --info       show the deck's contents and metrics instead of syncing
 """
+
 from __future__ import annotations
 
 import argparse
@@ -103,22 +104,34 @@ def main(argv: list[str] | None = None) -> int:
             "to create a new deck from."
         ),
     )
-    parser.add_argument("target", nargs="?", default=None,
-                        help="A directory, a deck file, or a URL")
-    parser.add_argument("url", nargs="?", default=None,
-                        help="Remote URL or path to a plain-text decklist")
-    parser.add_argument("--recursive", "-r", action="store_true",
-                        help="Recurse into subdirectories (directory targets only)")
-    parser.add_argument("--yes", "-y", action="store_true",
-                        help="Apply all changes without prompting")
-    parser.add_argument("--dry-run", "-n", action="store_true",
-                        help="Print changes and do not modify any file")
-    parser.add_argument("--info", "-i", action="store_true",
-                        help="Print the deck's contents and metrics instead of syncing")
-    parser.add_argument("--quiet", "-q", action="store_true",
-                        help="Suppress informational output; implies --yes")
-    parser.add_argument("--version", "-V", action="version",
-                        version=f"%(prog)s {__version__}")
+    parser.add_argument(
+        "target", nargs="?", default=None, help="A directory, a deck file, or a URL"
+    )
+    parser.add_argument(
+        "url", nargs="?", default=None, help="Remote URL or path to a plain-text decklist"
+    )
+    parser.add_argument(
+        "--recursive",
+        "-r",
+        action="store_true",
+        help="Recurse into subdirectories (directory targets only)",
+    )
+    parser.add_argument(
+        "--yes", "-y", action="store_true", help="Apply all changes without prompting"
+    )
+    parser.add_argument(
+        "--dry-run", "-n", action="store_true", help="Print changes and do not modify any file"
+    )
+    parser.add_argument(
+        "--info",
+        "-i",
+        action="store_true",
+        help="Print the deck's contents and metrics instead of syncing",
+    )
+    parser.add_argument(
+        "--quiet", "-q", action="store_true", help="Suppress informational output; implies --yes"
+    )
+    parser.add_argument("--version", "-V", action="version", version=f"%(prog)s {__version__}")
     args = parser.parse_args(argv)
 
     _state._QUIET = args.quiet
@@ -136,8 +149,9 @@ def main(argv: list[str] | None = None) -> int:
 # ----- routing --------------------------------------------------------------
 
 
-def _route(target: str | None, url: str | None, *,
-           recursive: bool, yes: bool, dry_run: bool, info: bool) -> int:
+def _route(
+    target: str | None, url: str | None, *, recursive: bool, yes: bool, dry_run: bool, info: bool
+) -> int:
     """Classify TARGET and dispatch."""
     if info:
         return _route_info(target, url)
@@ -189,8 +203,7 @@ def _route(target: str | None, url: str | None, *,
 def _route_info(target: str | None, url: str | None) -> int:
     """Dispatch for --info. Requires a file target, refuses URL/dir."""
     if target is None:
-        print("error: --info needs a deck file. Usage: cod-sync FILE --info",
-              file=sys.stderr)
+        print("error: --info needs a deck file. Usage: cod-sync FILE --info", file=sys.stderr)
         return 2
     if url is not None:
         print("error: --info doesn't take a URL.", file=sys.stderr)
@@ -199,8 +212,7 @@ def _route_info(target: str | None, url: str | None) -> int:
         print("error: --info needs a local deck file, not a URL.", file=sys.stderr)
         return 2
     if os.path.isdir(target):
-        print(f"error: --info needs a deck file, not a directory ({target}).",
-              file=sys.stderr)
+        print(f"error: --info needs a deck file, not a directory ({target}).", file=sys.stderr)
         return 2
 
     resolved = _resolve_deck_path(target)

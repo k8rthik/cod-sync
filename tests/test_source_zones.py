@@ -5,10 +5,10 @@ card meant to render with the commander pin lives in the sideboard. Each
 source must respect this when mapping its own structure onto our
 {main, side} model.
 """
+
 from __future__ import annotations
 
 from cod_sync.sources import archidekt, moxfield, text
-
 
 # ----- Moxfield -------------------------------------------------------------
 
@@ -94,9 +94,7 @@ def test_archidekt_companion_category_routes_to_side():
 
 
 def test_text_commander_header_routes_to_side():
-    result = text.parse(
-        "Commander\n1 Atraxa, Praetors' Voice\nDeck\n1 Sol Ring\n"
-    )
+    result = text.parse("Commander\n1 Atraxa, Praetors' Voice\nDeck\n1 Sol Ring\n")
     assert result == {
         "main": {"Sol Ring": 1},
         "side": {"Atraxa, Praetors' Voice": 1},
@@ -104,9 +102,7 @@ def test_text_commander_header_routes_to_side():
 
 
 def test_text_companion_header_routes_to_side():
-    result = text.parse(
-        "Companion\n1 Lurrus of the Dream-Den\nDeck\n4 Lightning Bolt\n"
-    )
+    result = text.parse("Companion\n1 Lurrus of the Dream-Den\nDeck\n4 Lightning Bolt\n")
     assert result == {
         "main": {"Lightning Bolt": 4},
         "side": {"Lurrus of the Dream-Den": 1},

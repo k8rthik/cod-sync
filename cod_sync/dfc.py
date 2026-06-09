@@ -12,6 +12,7 @@ collections this tool is built for don't run split cards and treating the
 " // " separator as a DFC marker works reliably. If a real split card breaks,
 this is the function to make layout-aware.
 """
+
 from __future__ import annotations
 
 

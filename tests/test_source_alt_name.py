@@ -5,6 +5,7 @@ shared `_canonicalize` step in `sources/__init__.py` rewrites flavor
 names to canonical names so the resulting deck matches Cockatrice's
 card database.
 """
+
 from __future__ import annotations
 
 from cod_sync import sources

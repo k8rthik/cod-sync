@@ -1,10 +1,10 @@
 """Tests for the bundled-seed + Scryfall-fallback canonicalization."""
+
 from __future__ import annotations
 
 import json
 
 from cod_sync import alt_name
-
 
 # ----- bundled seed --------------------------------------------------------
 
@@ -20,9 +20,7 @@ def test_unknown_name_is_identity_when_network_disabled():
 
 
 def test_batch_mixes_known_and_unknown():
-    out = alt_name.canonicalize_batch(
-        ["Unstable Harmonics", "Sol Ring", "Counterspell"]
-    )
+    out = alt_name.canonicalize_batch(["Unstable Harmonics", "Sol Ring", "Counterspell"])
     assert out == {
         "Unstable Harmonics": "Rhystic Study",
         "Sol Ring": "Sol Ring",
@@ -150,9 +148,7 @@ def test_stale_disk_cache_with_dfc_full_form_is_sanitized(tmp_path, monkeypatch)
     healed on the next sync — output is stripped even if the cache is dirty."""
     cache_path = tmp_path / "cod-sync" / "alt_names.json"
     cache_path.parent.mkdir(parents=True)
-    cache_path.write_text(
-        json.dumps({"Dowsing Dagger": "Dowsing Dagger // Lost Vale of Pahz"})
-    )
+    cache_path.write_text(json.dumps({"Dowsing Dagger": "Dowsing Dagger // Lost Vale of Pahz"}))
     monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
 
     out = alt_name.canonicalize_batch(["Dowsing Dagger"])
@@ -202,9 +198,7 @@ def test_scryfall_mixed_seed_and_unknown(tmp_path, monkeypatch):
 
     monkeypatch.setattr("cod_sync.alt_name._scryfall_batch_lookup", fake_lookup)
 
-    out = alt_name.canonicalize_batch(
-        ["Unstable Harmonics", "Mystery", "Counterspell"]
-    )
+    out = alt_name.canonicalize_batch(["Unstable Harmonics", "Mystery", "Counterspell"])
     assert out == {
         "Unstable Harmonics": "Rhystic Study",
         "Mystery": "Real Mystery",

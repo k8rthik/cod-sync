@@ -3,6 +3,7 @@
 Also home to the filename-sanitizer used by the bare-URL create flow:
 it's a pure string-shaping helper with no better-fitting module.
 """
+
 from __future__ import annotations
 
 import sys
@@ -10,7 +11,6 @@ import sys
 from cod_sync import cod, diff, errors, sourcetag
 
 from . import _state
-
 
 # ANSI colors
 _GREEN = "\033[32m"
@@ -52,14 +52,11 @@ def _format_source_error(e: errors.SourceError) -> str:
             f"the deck may have been deleted, or the URL may be wrong."
         )
     if isinstance(e, errors.DeckPrivateError):
-        return (
-            f"error: deck at {e.source} is private or requires login (HTTP 401/403)."
-        )
+        return f"error: deck at {e.source} is private or requires login (HTTP 401/403)."
     if isinstance(e, errors.RateLimitedError):
         hint = f" retry-after: {e.retry_after}s." if e.retry_after else ""
         return (
-            f"error: rate limited by source at {e.source} (HTTP 429). "
-            f"try again in a minute.{hint}"
+            f"error: rate limited by source at {e.source} (HTTP 429). try again in a minute.{hint}"
         )
     if isinstance(e, errors.RemoteServerError):
         return (
@@ -67,10 +64,7 @@ def _format_source_error(e: errors.SourceError) -> str:
             f"the site may be having issues; try again later."
         )
     if isinstance(e, errors.NetworkError):
-        return (
-            f"error: network error reaching {e.source}: {e.cause}. "
-            f"check your connection."
-        )
+        return f"error: network error reaching {e.source}: {e.cause}. check your connection."
     if isinstance(e, errors.MalformedResponseError):
         return (
             f"error: unexpected response from {e.source}: {e.reason}. "

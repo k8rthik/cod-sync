@@ -6,6 +6,7 @@ URL forms:
 
 API: https://api2.moxfield.com/v3/decks/all/<publicId>
 """
+
 from __future__ import annotations
 
 import re

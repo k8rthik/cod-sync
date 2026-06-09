@@ -9,6 +9,7 @@ After the source-specific fetch, every card name is run through
 `alt_name.canonicalize_batch` so flavor-name reskins (Secret Lair etc.) are
 mapped to their Cockatrice-recognized canonical names in one batch lookup.
 """
+
 from __future__ import annotations
 
 import os

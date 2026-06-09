@@ -10,6 +10,7 @@ a directory and asks per-file whether to sync. Once inside
 ``_sync_deck``, behavior is identical across all three callers; ``-y``
 is the single knob that turns prompts into accept-all.
 """
+
 from __future__ import annotations
 
 import os
@@ -32,7 +33,6 @@ from .formatting import (
 )
 from .prompts import _names_differ, _review
 from .routing import _is_url
-
 
 SyncStatus = Literal["no_change", "updated", "created", "skipped", "dry_run"]
 
@@ -87,9 +87,11 @@ def _sync_deck(
             return SyncOutcome("no_change", 0, False, False)
         if not yes:
             try:
-                ans = input(
-                    f"{indent}Create {cod_path} with {len(changes)} card(s)? [Y/n] "
-                ).strip().lower()
+                ans = (
+                    input(f"{indent}Create {cod_path} with {len(changes)} card(s)? [Y/n] ")
+                    .strip()
+                    .lower()
+                )
             except EOFError:
                 ans = "n"
             if ans not in ("", "y", "yes"):
@@ -114,7 +116,8 @@ def _sync_deck(
             f"Local name:  {final_deck.deckname or '(none)'}\n"
             f"Remote name: {remote_name}\n"
             f"Update deckname?",
-            default=False, auto_yes=yes,
+            default=False,
+            auto_yes=yes,
         ):
             final_deck = replace(final_deck, deckname=remote_name)
             deckname_changed = True
@@ -128,10 +131,9 @@ def _sync_deck(
             # cli._confirm (not prompts._confirm) so test patches on
             # `cod_sync.cli._confirm` reach this call site.
             update = cli._confirm(
-                f"Stored URL: {stored}\n"
-                f"New URL:    {url_to_remember}\n"
-                f"Update stored URL?",
-                default=False, auto_yes=yes,
+                f"Stored URL: {stored}\nNew URL:    {url_to_remember}\nUpdate stored URL?",
+                default=False,
+                auto_yes=yes,
             )
         if update:
             new_comments = sourcetag.set_source_url(final_deck.comments, url_to_remember)
@@ -193,7 +195,11 @@ def _sync_deck(
     if is_new_file:
         _state.say(f"{indent}{_BOLD}Wrote new deck to {cod_path}{_RESET}")
         return SyncOutcome(
-            "created", len(approved), marker_changed, deckname_changed, banner_changed,
+            "created",
+            len(approved),
+            marker_changed,
+            deckname_changed,
+            banner_changed,
             tags_changed,
         )
 
@@ -210,7 +216,11 @@ def _sync_deck(
         parts.append("tags")
     _state.say(f"{indent}{_BOLD}Wrote {' + '.join(parts)} to {cod_path}{_RESET}")
     return SyncOutcome(
-        "updated", len(approved), marker_changed, deckname_changed, banner_changed,
+        "updated",
+        len(approved),
+        marker_changed,
+        deckname_changed,
+        banner_changed,
         tags_changed,
     )
 
@@ -248,10 +258,15 @@ def _sync_file(cod_path: str, url: str | None, *, yes: bool, dry_run: bool) -> i
         return 2
 
     _sync_deck(
-        deck, cod_path, remote.zones, remote.name, remote.tags,
+        deck,
+        cod_path,
+        remote.zones,
+        remote.name,
+        remote.tags,
         is_new_file=not exists,
         url_to_remember=url if _is_url(url) else None,
-        yes=yes, dry_run=dry_run,
+        yes=yes,
+        dry_run=dry_run,
     )
     return 0
 

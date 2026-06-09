@@ -5,6 +5,7 @@ submodule reads from the same module-level binding. Submodules MUST
 reach the flag through this module (``_state._QUIET`` / ``_state.say``)
 so that ``main()``'s write at startup is visible everywhere.
 """
+
 from __future__ import annotations
 
 # Module-level quiet state — single-shot CLI, so threading `quiet: bool`

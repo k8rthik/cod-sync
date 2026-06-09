@@ -1,4 +1,5 @@
 """Tests for the DFC front-face normalization utility."""
+
 from __future__ import annotations
 
 from cod_sync import dfc
@@ -9,10 +10,7 @@ def test_strips_back_face_from_dfc_name():
 
 
 def test_strips_back_face_from_mdfc():
-    assert (
-        dfc.front_face("Bala Ged Recovery // Bala Ged Sanctuary")
-        == "Bala Ged Recovery"
-    )
+    assert dfc.front_face("Bala Ged Recovery // Bala Ged Sanctuary") == "Bala Ged Recovery"
 
 
 def test_passes_through_normal_card_name():

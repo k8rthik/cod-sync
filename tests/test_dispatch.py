@@ -4,12 +4,12 @@ We don't exercise the inner flow functions here — they have their own test
 files. The job of these tests is: given an `argv`, did `main()` route to the
 right function with the right arguments?
 """
+
 from __future__ import annotations
 
 import pytest
 
 from cod_sync import cli
-
 
 URL = "https://www.moxfield.com/decks/abc123"
 URL2 = "https://archidekt.com/decks/999"

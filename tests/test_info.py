@@ -1,12 +1,10 @@
 """Tests for `cod-sync FILE --info`."""
+
 from __future__ import annotations
 
 import re
 
-import pytest
-
 from cod_sync import cli, cod
-
 
 URL = "https://www.moxfield.com/decks/abc123"
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
@@ -28,14 +26,17 @@ def _write_deck(
 ):
     """Build and save a minimal Deck for testing. `pinned_set` flags some
     cards with a setShortName so we can verify pin-count reporting."""
+
     def _mk_cards(entries):
         cards = []
         for name, qty in entries.items():
-            cards.append(cod.Card(
-                name=name,
-                quantity=qty,
-                set_short_name=pinned_set if pinned_set else None,
-            ))
+            cards.append(
+                cod.Card(
+                    name=name,
+                    quantity=qty,
+                    set_short_name=pinned_set if pinned_set else None,
+                )
+            )
         return tuple(cards)
 
     zones = []
@@ -55,8 +56,7 @@ def _write_deck(
 
 def test_info_shows_deckname_and_format(tmp_path, capsys):
     cod_path = tmp_path / "named.cod"
-    _write_deck(cod_path, deckname="My EDH Pile", format_="commander",
-                main={"Sol Ring": 1})
+    _write_deck(cod_path, deckname="My EDH Pile", format_="commander", main={"Sol Ring": 1})
 
     rc = cli._show_info(str(cod_path))
     out = _plain(capsys.readouterr().out)
@@ -78,8 +78,7 @@ def test_info_shows_unnamed_deck_marker(tmp_path, capsys):
 
 def test_info_shows_stored_source_url(tmp_path, capsys):
     cod_path = tmp_path / "withurl.cod"
-    _write_deck(cod_path, comments=f"cod-sync-source: {URL}",
-                main={"Sol Ring": 1})
+    _write_deck(cod_path, comments=f"cod-sync-source: {URL}", main={"Sol Ring": 1})
 
     cli._show_info(str(cod_path))
     out = _plain(capsys.readouterr().out)
@@ -99,8 +98,7 @@ def test_info_shows_no_stored_url_marker(tmp_path, capsys):
 
 def test_info_shows_banner_when_set(tmp_path, capsys):
     cod_path = tmp_path / "withbanner.cod"
-    _write_deck(cod_path, banner_card_name="Atraxa, Praetors' Voice",
-                main={"Sol Ring": 1})
+    _write_deck(cod_path, banner_card_name="Atraxa, Praetors' Voice", main={"Sol Ring": 1})
 
     cli._show_info(str(cod_path))
     out = _plain(capsys.readouterr().out)
@@ -137,15 +135,18 @@ def test_info_lists_cards_alphabetically(tmp_path, capsys):
     out = _plain(capsys.readouterr().out)
 
     # Locate the listing in the output and verify the order.
-    lines = [l.strip() for l in out.splitlines() if l.strip()]
-    cards_in_order = [l for l in lines if l.endswith("Forest") or l.endswith("Sol Ring") or l.endswith("Arcane Signet")]
+    lines = [line.strip() for line in out.splitlines() if line.strip()]
+    cards_in_order = [
+        line
+        for line in lines
+        if line.endswith("Forest") or line.endswith("Sol Ring") or line.endswith("Arcane Signet")
+    ]
     assert cards_in_order == ["1 Arcane Signet", "10 Forest", "1 Sol Ring"]
 
 
 def test_info_shows_total_across_zones(tmp_path, capsys):
     cod_path = tmp_path / "totals.cod"
-    _write_deck(cod_path, main={"Sol Ring": 1, "Forest": 10},
-                side={"Pyroblast": 2})
+    _write_deck(cod_path, main={"Sol Ring": 1, "Forest": 10}, side={"Pyroblast": 2})
 
     cli._show_info(str(cod_path))
     out = _plain(capsys.readouterr().out)
@@ -190,8 +191,9 @@ def test_info_rolls_up_multi_printing_entries(tmp_path):
     path = tmp_path / "naz.cod"
     cod.save(deck, str(path))
 
-    import io
     import contextlib
+    import io
+
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         cli._show_info(str(path))
@@ -209,8 +211,7 @@ def test_main_dispatches_info_to_show_info(tmp_path, monkeypatch):
     _write_deck(tmp_path / "x.cod", main={"Sol Ring": 1})
 
     called: list = []
-    monkeypatch.setattr("cod_sync.cli._show_info",
-                        lambda p: called.append(p) or 0)
+    monkeypatch.setattr("cod_sync.cli._show_info", lambda p: called.append(p) or 0)
 
     rc = cli.main(["x.cod", "--info"])
 
@@ -223,8 +224,7 @@ def test_info_short_flag_dispatches_too(tmp_path, monkeypatch):
     _write_deck(tmp_path / "x.cod", main={"Sol Ring": 1})
 
     called: list = []
-    monkeypatch.setattr("cod_sync.cli._show_info",
-                        lambda p: called.append(p) or 0)
+    monkeypatch.setattr("cod_sync.cli._show_info", lambda p: called.append(p) or 0)
 
     cli.main(["x.cod", "-i"])
 
@@ -237,8 +237,7 @@ def test_info_resolves_cod_suffix(tmp_path, monkeypatch):
     _write_deck(tmp_path / "x.cod", main={"Sol Ring": 1})
 
     called: list = []
-    monkeypatch.setattr("cod_sync.cli._show_info",
-                        lambda p: called.append(p) or 0)
+    monkeypatch.setattr("cod_sync.cli._show_info", lambda p: called.append(p) or 0)
 
     cli.main(["x", "-i"])
 

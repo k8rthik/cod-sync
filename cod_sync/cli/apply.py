@@ -4,6 +4,7 @@ No I/O, no prompts, no module-level state. Given a deck and a list of
 diff changes, return the new deck. Tested directly by
 ``tests/test_multi_printing.py``.
 """
+
 from __future__ import annotations
 
 from cod_sync import cod, diff

@@ -5,11 +5,11 @@ Pure helpers with no I/O beyond ``os.path.exists`` checks. The actual
 where they can see the re-exported flow functions (so monkeypatches on
 ``cod_sync.cli._walk_directory`` etc. reach them at call time).
 """
+
 from __future__ import annotations
 
 import os
 import re
-
 
 _URL_RE = re.compile(r"^https?://", re.IGNORECASE)
 

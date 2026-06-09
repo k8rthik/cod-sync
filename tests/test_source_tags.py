@@ -5,10 +5,10 @@ Archidekt exposes deck-wide tags via `deckTags` (distinct from per-card
 `tags`). Per-card site labels are intentionally not extracted — they have
 no Cockatrice equivalent and would conflate semantic levels.
 """
+
 from __future__ import annotations
 
 from cod_sync.sources import archidekt, moxfield
-
 
 # ----- Archidekt ------------------------------------------------------------
 
@@ -24,15 +24,17 @@ def test_archidekt_deck_tags_string_form():
 
 
 def test_archidekt_deck_tags_skips_blanks_and_dedupes():
-    payload = {"deckTags": [
-        {"name": "Budget"},
-        {"name": "  "},
-        {"name": "budget"},
-        "",
-        None,
-        42,
-        "Combo",
-    ]}
+    payload = {
+        "deckTags": [
+            {"name": "Budget"},
+            {"name": "  "},
+            {"name": "budget"},
+            "",
+            None,
+            42,
+            "Combo",
+        ]
+    }
     assert archidekt._extract_tags(payload) == ("Budget", "Combo")
 
 
@@ -63,13 +65,15 @@ def test_moxfield_hubs_extracted():
 
 
 def test_moxfield_hubs_skips_blanks_and_dedupes():
-    payload = {"hubs": [
-        {"name": "Aggro", "slug": "aggro"},
-        {"name": "  "},
-        {"name": "aggro"},
-        "loose-string-ignored",
-        {"name": "Combo"},
-    ]}
+    payload = {
+        "hubs": [
+            {"name": "Aggro", "slug": "aggro"},
+            {"name": "  "},
+            {"name": "aggro"},
+            "loose-string-ignored",
+            {"name": "Combo"},
+        ]
+    }
     assert moxfield._extract_tags(payload) == ("Aggro", "Combo")
 
 

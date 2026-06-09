@@ -1,8 +1,9 @@
 """Parser and format-preserving writer for Cockatrice .cod files."""
+
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 
 
 @dataclass(frozen=True)
@@ -13,7 +14,7 @@ class Card:
     collector_number: str | None = None
     uuid: str | None = None
 
-    def with_quantity(self, quantity: int) -> "Card":
+    def with_quantity(self, quantity: int) -> Card:
         return replace(self, quantity=quantity)
 
 
@@ -22,7 +23,7 @@ class Zone:
     name: str
     cards: tuple[Card, ...] = ()
 
-    def with_cards(self, cards: tuple[Card, ...]) -> "Zone":
+    def with_cards(self, cards: tuple[Card, ...]) -> Zone:
         return replace(self, cards=cards)
 
 
@@ -43,7 +44,7 @@ class Deck:
                 return z
         return None
 
-    def with_zones(self, zones: tuple[Zone, ...]) -> "Deck":
+    def with_zones(self, zones: tuple[Zone, ...]) -> Deck:
         return replace(self, zones=zones)
 
 
@@ -125,10 +126,7 @@ def tags_list_to_xml(tags: tuple[str, ...]) -> str:
 
 def _xml_attr(value: str) -> str:
     return (
-        value.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
+        value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
     )
 
 

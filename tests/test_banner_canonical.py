@@ -2,13 +2,13 @@
 genuinely orphaned — that is, the canonical name is in the deck's card
 list and the original (reskin) name is not. In any other state the
 banner is left alone, so the user's local Cockatrice settings win."""
+
 from __future__ import annotations
 
 import pytest
 
 from cod_sync import cli, cod, sourcetag
 from cod_sync.sources import RemoteDeck
-
 
 URL = "https://www.moxfield.com/decks/abc123"
 
@@ -24,9 +24,11 @@ def _remote(zones, name=""):
 def _write_deck(path, *, banner=None, main=None):
     zones: tuple[cod.Zone, ...] = ()
     if main:
-        zones = (cod.Zone(name="main", cards=tuple(
-            cod.Card(name=n, quantity=q) for n, q in main.items()
-        )),)
+        zones = (
+            cod.Zone(
+                name="main", cards=tuple(cod.Card(name=n, quantity=q) for n, q in main.items())
+            ),
+        )
     deck = cod.Deck(
         deckname="x",
         comments=sourcetag.set_source_url("", URL),
@@ -53,8 +55,7 @@ def test_orphaned_reskin_banner_is_repointed_to_canonical(tmp_path, monkeypatch,
     _write_deck(cod_path, banner=RESKIN, main={"Sol Ring": 1, CANONICAL: 1})
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
-        lambda _src: _remote(
-            {"main": {"Sol Ring": 1, CANONICAL: 1}, "side": {}}, name="x"),
+        lambda _src: _remote({"main": {"Sol Ring": 1, CANONICAL: 1}, "side": {}}, name="x"),
     )
 
     rc = cli.main([str(cod_path), "--yes"])
@@ -73,8 +74,7 @@ def test_orphan_repoint_alone_triggers_save(tmp_path, monkeypatch, capsys):
     _write_deck(cod_path, banner=RESKIN, main={"Sol Ring": 1, CANONICAL: 1})
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
-        lambda _src: _remote(
-            {"main": {"Sol Ring": 1, CANONICAL: 1}, "side": {}}, name="x"),
+        lambda _src: _remote({"main": {"Sol Ring": 1, CANONICAL: 1}, "side": {}}, name="x"),
     )
 
     rc = cli.main([str(cod_path), "--yes"])
@@ -90,8 +90,7 @@ def test_orphan_repoint_fires_under_walk(tmp_path, monkeypatch, capsys):
     _write_deck(cod_path, banner=RESKIN, main={"Sol Ring": 1, CANONICAL: 1})
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
-        lambda _src: _remote(
-            {"main": {"Sol Ring": 1, CANONICAL: 1}, "side": {}}, name="x"),
+        lambda _src: _remote({"main": {"Sol Ring": 1, CANONICAL: 1}, "side": {}}, name="x"),
     )
 
     rc = cli.main([str(tmp_path), "--yes"])
@@ -114,8 +113,7 @@ def test_reskin_banner_preserved_when_reskin_still_in_card_list(tmp_path, monkey
     # canonicalize pressure on the local deck).
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
-        lambda _src: _remote(
-            {"main": {"Sol Ring": 1, RESKIN: 1}, "side": {}}, name="x"),
+        lambda _src: _remote({"main": {"Sol Ring": 1, RESKIN: 1}, "side": {}}, name="x"),
     )
 
     rc = cli.main([str(cod_path), "--yes"])
@@ -131,8 +129,7 @@ def test_canonical_banner_unchanged(tmp_path, monkeypatch, capsys):
     _write_deck(cod_path, banner=CANONICAL, main={"Sol Ring": 1, CANONICAL: 1})
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
-        lambda _src: _remote(
-            {"main": {"Sol Ring": 1, CANONICAL: 1}, "side": {}}, name="x"),
+        lambda _src: _remote({"main": {"Sol Ring": 1, CANONICAL: 1}, "side": {}}, name="x"),
     )
 
     rc = cli.main([str(cod_path), "--yes"])

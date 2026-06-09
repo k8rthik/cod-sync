@@ -1,4 +1,5 @@
 """Diff a local Cockatrice deck against a normalized remote decklist."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,10 +14,10 @@ ChangeKind = Literal["add", "remove", "qty"]
 @dataclass(frozen=True)
 class Change:
     kind: ChangeKind
-    zone: str           # "main" | "side"
+    zone: str  # "main" | "side"
     name: str
-    local_qty: int      # current quantity in the .cod (0 if absent)
-    remote_qty: int     # quantity in the remote source (0 if absent)
+    local_qty: int  # current quantity in the .cod (0 if absent)
+    remote_qty: int  # quantity in the remote source (0 if absent)
 
     def describe(self) -> str:
         if self.kind == "add":

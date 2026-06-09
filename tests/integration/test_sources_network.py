@@ -29,6 +29,7 @@ The invariants below were verified against the Archidekt copy at the
 time of writing; if the deck owner edits the list materially, update
 the invariants block (not the assertion bodies).
 """
+
 from __future__ import annotations
 
 import pytest
@@ -37,9 +38,7 @@ from cod_sync import sources
 from cod_sync.sources import RemoteDeck
 
 _MOXFIELD_URL = "https://moxfield.com/decks/gGtJmNlez06i3p6Kved35g"
-_ARCHIDEKT_URL = (
-    "https://archidekt.com/decks/21319716/quandrix_unlimited_secrets_of_strixhaven"
-)
+_ARCHIDEKT_URL = "https://archidekt.com/decks/21319716/quandrix_unlimited_secrets_of_strixhaven"
 
 # Invariants of the deck both URLs point to. These were verified by
 # fetching the Archidekt copy directly; the Moxfield copy is asserted
@@ -75,9 +74,7 @@ def _assert_basic_shape(deck) -> None:
     assert deck.zones["main"], "mainboard should not be empty"
     for zone_name, cards in deck.zones.items():
         for card_name, qty in cards.items():
-            assert isinstance(card_name, str) and card_name, (
-                f"empty card name in zone {zone_name}"
-            )
+            assert isinstance(card_name, str) and card_name, f"empty card name in zone {zone_name}"
             assert isinstance(qty, int) and qty > 0, (
                 f"non-positive qty for {card_name!r} in zone {zone_name}: {qty!r}"
             )
@@ -98,26 +95,19 @@ def _assert_precon_invariants(deck) -> None:
         f"got {sum(side.values())}: {dict(side)!r}"
     )
     assert side.get(_EXPECTED_COMMANDER) == 1, (
-        f"expected commander {_EXPECTED_COMMANDER!r} with qty 1 in side, "
-        f"got side={dict(side)!r}"
+        f"expected commander {_EXPECTED_COMMANDER!r} with qty 1 in side, got side={dict(side)!r}"
     )
 
     missing = _EXPECTED_MAIN_ANCHORS - main.keys()
-    assert not missing, (
-        f"mainboard missing expected anchor cards: {missing}"
-    )
+    assert not missing, f"mainboard missing expected anchor cards: {missing}"
 
     # DFC normalization: nothing should round-trip as `Front // Back`.
     # The Quandrix deck contains DFCs (Elusive Otter // Grove's Bounty,
     # Striding Shotcaller // Run the Play, Yavimaya Bloomsage // Channel)
     # so a regression in dfc.front_face would show up as a card name
     # still containing " // ".
-    dfc_residue = [
-        name for cards in deck.zones.values() for name in cards if " // " in name
-    ]
-    assert not dfc_residue, (
-        f"DFC names should be normalized to front face only, got: {dfc_residue}"
-    )
+    dfc_residue = [name for cards in deck.zones.values() for name in cards if " // " in name]
+    assert not dfc_residue, f"DFC names should be normalized to front face only, got: {dfc_residue}"
 
 
 @pytest.mark.network

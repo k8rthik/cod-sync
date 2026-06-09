@@ -1,4 +1,5 @@
 """Shared types for the source fetchers."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -18,6 +19,7 @@ class RemoteDeck:
     `tags` is the deck-level tag list (Archidekt `deckTags`, Moxfield `hubs`).
     Empty for sources that don't expose deck-wide tags (plain text).
     """
+
     name: str
     zones: Zones
     tags: tuple[str, ...] = ()

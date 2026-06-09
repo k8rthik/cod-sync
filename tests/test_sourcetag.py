@@ -1,6 +1,5 @@
 from cod_sync.sourcetag import get_source_url, set_source_url
 
-
 URL = "https://www.moxfield.com/decks/abc123"
 
 
@@ -39,7 +38,7 @@ def test_set_replaces_existing_marker_in_place():
 
 
 def test_set_dedupes_extra_markers():
-    comments = f"cod-sync-source: old1\ncod-sync-source: old2\nuser note"
+    comments = "cod-sync-source: old1\ncod-sync-source: old2\nuser note"
     out = set_source_url(comments, URL)
     assert out == f"cod-sync-source: {URL}\nuser note"
 

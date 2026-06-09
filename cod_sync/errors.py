@@ -8,9 +8,8 @@ The module imports `requests` only for the `from_http_response` helper's
 type hint; the helper is the single shared place where HTTP status →
 typed error mapping lives, so both source fetchers route through it.
 """
-from __future__ import annotations
 
-from typing import Optional
+from __future__ import annotations
 
 import requests
 
@@ -48,7 +47,7 @@ class DeckPrivateError(SourceError):
 class RateLimitedError(SourceError):
     """HTTP 429: source is rate-limiting us. May carry a Retry-After hint."""
 
-    def __init__(self, source: str, retry_after: Optional[str] = None) -> None:
+    def __init__(self, source: str, retry_after: str | None = None) -> None:
         super().__init__(source, "rate limited")
         self.retry_after = retry_after
 

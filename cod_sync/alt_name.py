@@ -26,17 +26,18 @@ millisecond; with all entries unknown and network off, well under 10ms.
 A directory walk amortizes Scryfall lookups across decks — the first
 deck pays the round-trip cost, subsequent decks hit the in-memory cache.
 """
+
 from __future__ import annotations
 
 import json
 import os
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import requests
 
 from . import _seed_data, dfc
-
 
 _API_COLLECTION = "https://api.scryfall.com/cards/collection"
 _USER_AGENT = "cod-sync/0.7 (+https://github.com/k8rthik/cod-sync)"
@@ -227,7 +228,7 @@ def _scryfall_batch_lookup(names: list[str]) -> dict[str, str]:
     resolved: dict[str, str] = {}
     session = _get_session()
     for i in range(0, len(names), _BATCH_SIZE):
-        chunk = names[i:i + _BATCH_SIZE]
+        chunk = names[i : i + _BATCH_SIZE]
         try:
             resp = session.post(
                 _API_COLLECTION,
@@ -242,9 +243,7 @@ def _scryfall_batch_lookup(names: list[str]) -> dict[str, str]:
     return resolved
 
 
-def _absorb_response(
-    chunk: list[str], data: dict[str, Any], resolved: dict[str, str]
-) -> None:
+def _absorb_response(chunk: list[str], data: dict[str, Any], resolved: dict[str, str]) -> None:
     """Match Scryfall response items back to input query names.
 
     Scryfall preserves request order in `data` and lists unresolved

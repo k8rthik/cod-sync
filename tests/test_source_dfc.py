@@ -5,6 +5,7 @@ We strip the back face before the name reaches the diff layer or the import
 writer so it matches Cockatrice's card database, which keys DFCs by front
 face only.
 """
+
 from __future__ import annotations
 
 from cod_sync.sources import archidekt, moxfield, text
@@ -70,9 +71,7 @@ def test_archidekt_strips_dfc_back():
             {
                 "quantity": 1,
                 "categories": [],
-                "card": {
-                    "oracleCard": {"name": "Storm the Vault // Vault of Catlacan"}
-                },
+                "card": {"oracleCard": {"name": "Storm the Vault // Vault of Catlacan"}},
             },
             {
                 "quantity": 4,
@@ -92,9 +91,7 @@ def test_archidekt_strips_dfc_in_sideboard_category():
             {
                 "quantity": 1,
                 "categories": ["Sideboard"],
-                "card": {
-                    "oracleCard": {"name": "Bala Ged Recovery // Bala Ged Sanctuary"}
-                },
+                "card": {"oracleCard": {"name": "Bala Ged Recovery // Bala Ged Sanctuary"}},
             }
         ],
     }

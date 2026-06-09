@@ -4,13 +4,11 @@ The dispatcher tests in `test_dispatch.py` mock `_walk_directory` itself, so
 this file exercises the actual prompt loop end-to-end with a fake `input`
 queue and a stubbed `sources.fetch`.
 """
-from __future__ import annotations
 
-import pytest
+from __future__ import annotations
 
 from cod_sync import cli, cod, sourcetag
 from cod_sync.sources import RemoteDeck
-
 
 URL_STORED = "https://archidekt.com/decks/12345"
 URL_TYPED = "https://www.moxfield.com/decks/typed"
@@ -20,9 +18,11 @@ def _write(path, *, deckname="", url=None, main=None):
     comments = f"cod-sync-source: {url}" if url else ""
     zones = []
     if main:
-        zones.append(cod.Zone(name="main", cards=tuple(
-            cod.Card(name=n, quantity=q) for n, q in main.items()
-        )))
+        zones.append(
+            cod.Zone(
+                name="main", cards=tuple(cod.Card(name=n, quantity=q) for n, q in main.items())
+            )
+        )
     deck = cod.Deck(deckname=deckname, comments=comments, zones=tuple(zones))
     cod.save(deck, str(path))
 
@@ -189,10 +189,9 @@ def test_no_stored_url_q_quits(tmp_path, monkeypatch):
 
 def _stub_fetch_named(monkeypatch, remote_name):
     """Like _stub_fetch but the remote deck carries a real name."""
+
     def fake_fetch(_src):
-        return RemoteDeck(
-            name=remote_name, zones={"main": {"Sol Ring": 1}, "side": {}}
-        )
+        return RemoteDeck(name=remote_name, zones={"main": {"Sol Ring": 1}, "side": {}})
 
     monkeypatch.setattr("cod_sync.cli.sources.fetch", fake_fetch)
 

@@ -1,12 +1,12 @@
 """--quiet / -q suppresses informational stdout, preserves stderr,
 and silently implies --yes."""
+
 from __future__ import annotations
 
 import pytest
 
 from cod_sync import cli, cod, sourcetag
 from cod_sync.sources import RemoteDeck
-
 
 URL = "https://www.moxfield.com/decks/abc123"
 
@@ -18,13 +18,17 @@ def _remote(zones, name=""):
 def _write_deck(path, *, deckname="", comments="", main=None, side=None):
     zones = []
     if main:
-        zones.append(cod.Zone(name="main", cards=tuple(
-            cod.Card(name=n, quantity=q) for n, q in main.items()
-        )))
+        zones.append(
+            cod.Zone(
+                name="main", cards=tuple(cod.Card(name=n, quantity=q) for n, q in main.items())
+            )
+        )
     if side:
-        zones.append(cod.Zone(name="side", cards=tuple(
-            cod.Card(name=n, quantity=q) for n, q in side.items()
-        )))
+        zones.append(
+            cod.Zone(
+                name="side", cards=tuple(cod.Card(name=n, quantity=q) for n, q in side.items())
+            )
+        )
     cod.save(cod.Deck(deckname=deckname, comments=comments, zones=tuple(zones)), str(path))
 
 
@@ -47,9 +51,9 @@ def _default_input(monkeypatch):
 
 def test_quiet_suppresses_noop_diff_message(tmp_path, monkeypatch, capsys):
     cod_path = tmp_path / "deck.cod"
-    _write_deck(cod_path, deckname="x",
-                comments=sourcetag.set_source_url("", URL),
-                main={"Sol Ring": 1})
+    _write_deck(
+        cod_path, deckname="x", comments=sourcetag.set_source_url("", URL), main={"Sol Ring": 1}
+    )
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
         lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="x"),
@@ -63,13 +67,12 @@ def test_quiet_suppresses_noop_diff_message(tmp_path, monkeypatch, capsys):
 
 def test_quiet_suppresses_write_summary(tmp_path, monkeypatch, capsys):
     cod_path = tmp_path / "deck.cod"
-    _write_deck(cod_path, deckname="x",
-                comments=sourcetag.set_source_url("", URL),
-                main={"Sol Ring": 1})
+    _write_deck(
+        cod_path, deckname="x", comments=sourcetag.set_source_url("", URL), main={"Sol Ring": 1}
+    )
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
-        lambda _src: _remote(
-            {"main": {"Sol Ring": 1, "Counterspell": 4}, "side": {}}, name="x"),
+        lambda _src: _remote({"main": {"Sol Ring": 1, "Counterspell": 4}, "side": {}}, name="x"),
     )
 
     rc = cli.main([str(cod_path), "--quiet"])
@@ -88,9 +91,9 @@ def test_quiet_suppresses_write_summary(tmp_path, monkeypatch, capsys):
 
 def test_quiet_suppresses_walk_banner_and_stats(tmp_path, monkeypatch, capsys):
     cod_path = tmp_path / "deck.cod"
-    _write_deck(cod_path, deckname="x",
-                comments=sourcetag.set_source_url("", URL),
-                main={"Sol Ring": 1})
+    _write_deck(
+        cod_path, deckname="x", comments=sourcetag.set_source_url("", URL), main={"Sol Ring": 1}
+    )
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
         lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="x"),
@@ -110,9 +113,9 @@ def test_quiet_preserves_fetch_error_on_stderr(tmp_path, monkeypatch, capsys):
     from cod_sync import errors
 
     cod_path = tmp_path / "deck.cod"
-    _write_deck(cod_path, deckname="x",
-                comments=sourcetag.set_source_url("", URL),
-                main={"Sol Ring": 1})
+    _write_deck(
+        cod_path, deckname="x", comments=sourcetag.set_source_url("", URL), main={"Sol Ring": 1}
+    )
 
     def boom(_src):
         raise errors.NetworkError(URL, cause="network unreachable")
@@ -131,9 +134,9 @@ def test_quiet_preserves_walk_fetch_error_on_stderr(tmp_path, monkeypatch, capsy
     from cod_sync import errors
 
     cod_path = tmp_path / "deck.cod"
-    _write_deck(cod_path, deckname="x",
-                comments=sourcetag.set_source_url("", URL),
-                main={"Sol Ring": 1})
+    _write_deck(
+        cod_path, deckname="x", comments=sourcetag.set_source_url("", URL), main={"Sol Ring": 1}
+    )
 
     def boom(_src):
         raise errors.RateLimitedError(URL)
@@ -169,13 +172,12 @@ def test_quiet_does_not_gate_info(tmp_path, capsys):
 def test_quiet_auto_accepts_changes_without_prompt(tmp_path, monkeypatch, capsys):
     """No input() should be consumed — confirms --quiet implies --yes."""
     cod_path = tmp_path / "deck.cod"
-    _write_deck(cod_path, deckname="x",
-                comments=sourcetag.set_source_url("", URL),
-                main={"Sol Ring": 1})
+    _write_deck(
+        cod_path, deckname="x", comments=sourcetag.set_source_url("", URL), main={"Sol Ring": 1}
+    )
     monkeypatch.setattr(
         "cod_sync.cli.sources.fetch",
-        lambda _src: _remote(
-            {"main": {"Sol Ring": 1, "Counterspell": 4}, "side": {}}, name="x"),
+        lambda _src: _remote({"main": {"Sol Ring": 1, "Counterspell": 4}, "side": {}}, name="x"),
     )
 
     def boom(*_a, **_k):

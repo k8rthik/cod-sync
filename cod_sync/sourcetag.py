@@ -8,6 +8,7 @@ the user's own notes. Format:
 If a marker line already exists it is replaced; otherwise a new line is
 appended. The rest of the comments string is preserved verbatim.
 """
+
 from __future__ import annotations
 
 _MARKER = "cod-sync-source:"
@@ -18,7 +19,7 @@ def get_source_url(comments: str) -> str | None:
     for line in comments.splitlines():
         stripped = line.strip()
         if stripped.startswith(_MARKER):
-            url = stripped[len(_MARKER):].strip()
+            url = stripped[len(_MARKER) :].strip()
             return url or None
     return None
 

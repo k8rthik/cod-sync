@@ -13,6 +13,7 @@ The runtime in `cod_sync/alt_name.py` does not call Scryfall — this is
 the only path that hits the API. Reskins released between cod-sync
 releases are not covered until this is re-run.
 """
+
 from __future__ import annotations
 
 import sys
@@ -25,7 +26,6 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from cod_sync.dfc import front_face  # noqa: E402
-
 
 _SEARCH = "https://api.scryfall.com/cards/search"
 _USER_AGENT = "cod-sync/seed-refresh (+https://github.com/k8rthik/cod-sync)"

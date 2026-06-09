@@ -1,4 +1,5 @@
 """--version / -V prints the package version and exits cleanly."""
+
 from __future__ import annotations
 
 import pytest

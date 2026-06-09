@@ -4,6 +4,7 @@ Every call site is gated by an ``auto_yes`` boolean so non-interactive
 runs (``--yes``, ``--quiet``) bypass ``input()`` entirely. ``_review``
 also handles the multi-state per-change approval flow used during sync.
 """
+
 from __future__ import annotations
 
 from cod_sync import diff

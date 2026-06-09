@@ -1,4 +1,5 @@
 """Plain-text decklist parser (MTGA / MTGO style)."""
+
 from __future__ import annotations
 
 import re

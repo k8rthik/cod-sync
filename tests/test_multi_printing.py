@@ -1,6 +1,7 @@
 """Coverage for the multi-printing bug: a card listed as several <card> lines
 with different printing pins (e.g. 9 Nazgûl, each its own uuid) must be
 treated as one logical card by both diff and apply."""
+
 from cod_sync import cod, diff
 from cod_sync.cli import _apply
 
@@ -67,7 +68,13 @@ def test_apply_qty_decrease_partial_on_last_entry():
     # 3 entries of qty 4 each = 12 total. Target 10 → drop nothing, reduce
     # last entry from 4 to 2.
     cards = tuple(
-        cod.Card(name="Treasure Token", quantity=4, set_short_name="X", collector_number=str(i), uuid=f"u{i}")
+        cod.Card(
+            name="Treasure Token",
+            quantity=4,
+            set_short_name="X",
+            collector_number=str(i),
+            uuid=f"u{i}",
+        )
         for i in range(3)
     )
     deck = cod.Deck(zones=(cod.Zone(name="main", cards=cards),))
@@ -90,7 +97,9 @@ def test_apply_remove_drops_all_printings():
 
 def test_apply_qty_increase_on_single_entry_bumps_in_place():
     """Single-entry case still works: bump qty on the existing card, preserve pins."""
-    card = cod.Card(name="Forest", quantity=10, set_short_name="LEA", collector_number="1", uuid="x")
+    card = cod.Card(
+        name="Forest", quantity=10, set_short_name="LEA", collector_number="1", uuid="x"
+    )
     deck = cod.Deck(zones=(cod.Zone(name="main", cards=(card,)),))
     changes = [diff.Change("qty", "main", "Forest", 10, 11)]
     new_deck = _apply(deck, changes)
