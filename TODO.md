@@ -69,4 +69,3 @@ no-change, skipped, errors). When `errors > 0` the user has to scroll
 back through interleaved output to see which files failed and why.
 Collecting a small list of `(path, error)` and printing it as a footer
 under the summary would make a multi-file walk far easier to triage.
-
