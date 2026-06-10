@@ -35,22 +35,6 @@ create files will lose the count silently.
       `SyncOutcome` with status `"created"` and asserts the new
       contract (either it appears in the footer, or the assert fires).
 
-### `alt_name` module-level mutable globals block concurrency
-
-`cod_sync/alt_name.py:59-72`: `_disk_cache` and `_session` are
-process-wide and unsynchronized. Two consequences: the "parallelize
-Scryfall batches" P2 item below can't be implemented without a lock or
-a per-thread session, and embedding the library in any multi-threaded
-host (web service, GUI) races on the disk cache mutation in
-`_save_disk_cache`. The fix is small and unblocks future work.
-
-- [ ] Add a module-level `threading.Lock` guarding `_disk_cache` reads
-      and writes inside `_get_disk_cache` and `_save_disk_cache`.
-- [ ] Document thread-safety guarantees (or lack thereof) in the
-      module docstring at the top of `alt_name.py`.
-- [ ] Add a test that spawns N threads calling `canonicalize` on
-      overlapping name sets and asserts no `KeyError` / corrupt JSON.
-
 ---
 
 ## P2 — real value, moderate urgency
@@ -112,9 +96,9 @@ Deckstats, Decked Builder are common asks.
 
 Decks with many unknown cards split into multiple sequential network
 batches. A modest thread pool would halve first-sync latency for these
-edge cases. Blocked on the concurrency-safety P1 item above.
+edge cases. Unblocked since 0.11.3: `alt_name`'s module state is
+lock-guarded and the lock is never held across network I/O.
 
-- [ ] Confirm the `alt_name` lock landed (P1 above).
 - [ ] Replace the sequential loop in `_scryfall_batch_lookup` with a
       `ThreadPoolExecutor(max_workers=4)` mapping batches concurrently.
 - [ ] Cap concurrency at 4 to stay under Scryfall's rate-limit
