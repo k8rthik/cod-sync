@@ -168,6 +168,21 @@ def test_info_handles_empty_deck(tmp_path, capsys):
     assert "total: 0 cards" in out
 
 
+def test_info_handles_all_zero_quantity_zone(tmp_path, capsys):
+    """A zone whose every card has quantity=0 must render, not crash."""
+    cod_path = tmp_path / "zeroes.cod"
+    _write_deck(cod_path, main={"Giant Growth": 0, "Llanowar Elves": 0})
+
+    rc = cli._show_info(str(cod_path))
+    out = _plain(capsys.readouterr().out)
+
+    assert rc == 0
+    assert "[main] 0 cards · 2 unique" in out
+    assert "0 Giant Growth" in out
+    assert "(empty deck)" in out
+    assert "total: 0 cards" in out
+
+
 def test_info_pin_count_reflects_set_short_name(tmp_path, capsys):
     cod_path = tmp_path / "pinned.cod"
     _write_deck(cod_path, main={"Sol Ring": 1, "Forest": 5}, pinned_set="LCI")

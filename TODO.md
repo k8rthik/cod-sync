@@ -18,22 +18,6 @@ Tier guide:
 
 ## P1 — correctness, data-loss, architectural blockers
 
-### `_show_info` crashes on an all-zero-quantity zone
-
-`cod_sync/cli/formatting.py:127` calls `max(totals.values())` to compute
-the quantity-column width. The guard above only checks `not zone.cards`,
-not whether any quantities are non-zero. A zone whose every card has
-`quantity=0` (malformed file, hand-edited deck) leaves `totals` populated
-with zero values; `max` of `[0, 0, ...]` returns `0` and width becomes
-`1`, which is fine — but a zone where every card name is empty *and* the
-guard somehow misses returns an empty `totals` and raises
-`ValueError: max() arg is an empty sequence`. The defensive shape is
-the same either way: don't compute width off a possibly-empty iterable.
-
-- [ ] Replace `max(totals.values())` with `max(totals.values(), default=1)`.
-- [ ] Add a regression test in `tests/test_info.py` exercising an
-      empty-zone-after-filter case to lock the behavior.
-
 ### `tags_xml_to_list` swallows malformed XML as "no tags"
 
 `cod_sync/cod.py:103-115`: a `ParseError` is caught and returns `()`.

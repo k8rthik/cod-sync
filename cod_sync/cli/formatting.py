@@ -124,7 +124,7 @@ def _show_info(cod_path: str) -> int:
             f"  {_CYAN}{_BOLD}[{zone_name}]{_RESET} "
             f"{zone_total} cards · {len(totals)} unique · {pinned} pinned"
         )
-        max_qty_width = len(str(max(totals.values())))
+        max_qty_width = len(str(max(totals.values(), default=1)))
         for name in sorted(totals, key=str.lower):
             print(f"    {totals[name]:>{max_qty_width}} {name}")
         print()
