@@ -25,6 +25,14 @@ A 100-card sync with everything cached returns in well under a
 millisecond; with all entries unknown and network off, well under 10ms.
 A directory walk amortizes Scryfall lookups across decks — the first
 deck pays the round-trip cost, subsequent decks hit the in-memory cache.
+
+Thread safety: `canonicalize` and `canonicalize_batch` may be called from
+multiple threads. A single module-level lock guards lazy initialization of
+the disk cache and HTTP session, all cache mutations, and disk writes; the
+lock is never held during Scryfall HTTP calls, so concurrent batches overlap
+their network I/O. Two threads racing on the same unknown name may each
+query Scryfall once (results are identical; last write wins). Cache reads
+are unlocked and rely on CPython's atomic dict access.
 """
 
 from __future__ import annotations
@@ -32,6 +40,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -54,10 +63,12 @@ _SEED: dict[str, str] = _seed_data.SEED
 #   _disk_cache  — loaded once, mutated in place, written back when learned
 #                  entries are added
 #   _session     — keep-alive HTTP session so Scryfall batches reuse TCP/TLS
-#   _cache_path_cache — env-resolved Path; saves an env lookup per call
 #   _warned_save_failure — cache-write failures warn on stderr once, not per call
-# All of these are reset by `_reset_state_for_tests()` between pytest tests.
+# All are guarded by `_state_lock`: mutate `_disk_cache` and call
+# `_save_disk_cache` only while holding it. All are reset by
+# `_reset_state_for_tests()` between pytest tests.
 
+_state_lock = threading.Lock()
 _disk_cache: dict[str, str] | None = None
 _session: requests.Session | None = None
 _warned_save_failure: bool = False
@@ -66,14 +77,15 @@ _warned_save_failure: bool = False
 def _reset_state_for_tests() -> None:
     """Drop process memoization. Call between tests so env changes take effect."""
     global _disk_cache, _session, _warned_save_failure
-    _disk_cache = None
-    _warned_save_failure = False
-    if _session is not None:
-        try:
-            _session.close()
-        except Exception:
-            pass
-        _session = None
+    with _state_lock:
+        _disk_cache = None
+        _warned_save_failure = False
+        if _session is not None:
+            try:
+                _session.close()
+            except Exception:
+                pass
+            _session = None
 
 
 # ----- public API ----------------------------------------------------------
@@ -119,14 +131,15 @@ def canonicalize_batch(names: Iterable[str]) -> dict[str, str]:
             out[n] = n
         return out
 
-    resolved = _scryfall_batch_lookup(unknown)
-    for n in unknown:
-        # Scryfall returns DFC canonicals as "Front // Back"; Cockatrice
-        # only recognizes the front face, so strip before caching.
-        canonical = dfc.front_face(resolved.get(n, n))
-        out[n] = canonical
-        disk[n] = canonical  # in-memory cache wins for the rest of the process
-    _save_disk_cache(disk)
+    resolved = _scryfall_batch_lookup(unknown)  # network — lock not held
+    with _state_lock:
+        for n in unknown:
+            # Scryfall returns DFC canonicals as "Front // Back"; Cockatrice
+            # only recognizes the front face, so strip before caching.
+            canonical = dfc.front_face(resolved.get(n, n))
+            out[n] = canonical
+            disk[n] = canonical  # in-memory cache wins for the rest of the process
+        _save_disk_cache(disk)
     return out
 
 
@@ -144,10 +157,11 @@ def canonicalize(name: str) -> str:
         return dfc.front_face(v)
     if _network_disabled():
         return name
-    resolved = _scryfall_batch_lookup([name])
+    resolved = _scryfall_batch_lookup([name])  # network — lock not held
     canonical = dfc.front_face(resolved.get(name, name))
-    disk[name] = canonical
-    _save_disk_cache(disk)
+    with _state_lock:
+        disk[name] = canonical
+        _save_disk_cache(disk)
     return canonical
 
 
@@ -170,9 +184,10 @@ def _cache_path() -> Path:
 def _get_disk_cache() -> dict[str, str]:
     """Lazy-load the disk cache once per process, then keep it in memory."""
     global _disk_cache
-    if _disk_cache is None:
-        _disk_cache = _read_disk_cache()
-    return _disk_cache
+    with _state_lock:
+        if _disk_cache is None:
+            _disk_cache = _read_disk_cache()
+        return _disk_cache
 
 
 def _read_disk_cache() -> dict[str, str]:
@@ -192,7 +207,11 @@ def _read_disk_cache() -> dict[str, str]:
 
 def _save_disk_cache(cache: dict[str, str]) -> None:
     """Persist the in-memory cache. Best-effort: never raises, but warns on
-    stderr once per process so an unwritable cache doesn't degrade silently."""
+    stderr once per process so an unwritable cache doesn't degrade silently.
+
+    Callers must hold `_state_lock`; all mutations of the cache dict happen
+    under the same lock, so `json.dump` can safely iterate it.
+    """
     global _warned_save_failure
     path = _cache_path()
     try:
@@ -217,17 +236,18 @@ def _save_disk_cache(cache: dict[str, str]) -> None:
 def _get_session() -> requests.Session:
     """Reuse a single HTTP session so Scryfall batches share TCP+TLS state."""
     global _session
-    if _session is None:
-        s = requests.Session()
-        s.headers.update(
-            {
-                "User-Agent": _USER_AGENT,
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-            }
-        )
-        _session = s
-    return _session
+    with _state_lock:
+        if _session is None:
+            s = requests.Session()
+            s.headers.update(
+                {
+                    "User-Agent": _USER_AGENT,
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                }
+            )
+            _session = s
+        return _session
 
 
 def _scryfall_batch_lookup(names: list[str]) -> dict[str, str]:

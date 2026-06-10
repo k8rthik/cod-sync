@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 
 from cod_sync import alt_name
 
@@ -261,6 +263,76 @@ def test_second_sync_hits_cache_not_scryfall(tmp_path, monkeypatch):
     alt_name.canonicalize_batch(["Unknown A", "Unknown B"])
 
     assert call_count[0] == 1
+
+
+# ----- thread safety -------------------------------------------------------
+
+
+def test_concurrent_canonicalize_is_thread_safe(tmp_path, monkeypatch):
+    """Concurrent lookups that learn new entries must not corrupt the cache.
+
+    Pre-lock, a thread serializing the cache dict in `_save_disk_cache` races
+    another thread's `disk[name] = canonical` mutation and `json.dump` raises
+    RuntimeError (dict changed size during iteration), which nothing catches.
+    """
+    _allow_network(monkeypatch)
+    monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
+
+    def fake_lookup(names):
+        time.sleep(0.001)  # widen the miss -> mutate+save race window
+        return {n: n.replace("Skin", "Canon") for n in names}
+
+    monkeypatch.setattr("cod_sync.alt_name._scryfall_batch_lookup", fake_lookup)
+
+    names = [f"Skin {i}" for i in range(80)]
+    n_threads = 8
+    barrier = threading.Barrier(n_threads)
+    errors: list[BaseException] = []
+
+    def worker(offset: int) -> None:
+        barrier.wait()
+        try:
+            for i in range(40):
+                n = names[(offset + i) % len(names)]
+                assert alt_name.canonicalize(n) == n.replace("Skin", "Canon")
+            out = alt_name.canonicalize_batch(names)
+            assert out == {n: n.replace("Skin", "Canon") for n in names}
+        except BaseException as exc:  # noqa: BLE001 - re-raised in main thread
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker, args=(k * 11,)) for k in range(n_threads)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert errors == []
+    # Cache file must be parseable, consistent JSON — no torn writes.
+    cached = json.loads((tmp_path / "cod-sync" / "alt_names.json").read_text())
+    assert all(cached[k] == k.replace("Skin", "Canon") for k in cached)
+
+
+def test_disk_cache_lazy_init_is_single_object(tmp_path, monkeypatch):
+    """Threads racing the lazy load must all see the same cache dict —
+    otherwise entries learned through one copy are lost from the other."""
+    monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
+
+    n_threads = 16
+    barrier = threading.Barrier(n_threads)
+    results: list[dict[str, str]] = []
+
+    def worker() -> None:
+        barrier.wait()
+        results.append(alt_name._get_disk_cache())
+
+    threads = [threading.Thread(target=worker) for _ in range(n_threads)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert len(results) == n_threads
+    assert len({id(r) for r in results}) == 1
 
 
 # ----- response matching ---------------------------------------------------
