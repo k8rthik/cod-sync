@@ -102,11 +102,14 @@ def _serialize_tags(tags_el: ET.Element) -> str:
 
 def tags_xml_to_list(tags_xml: str) -> tuple[str, ...]:
     """Extract the text of each <tag> child from a stored tags_xml blob.
-    Returns an empty tuple for the default `<tags/>` form."""
+    Returns an empty tuple for the default `<tags/>` form. Raises ValueError
+    on malformed XML or a non-<tags> root rather than masking it as empty."""
     try:
         root = ET.fromstring(tags_xml)
-    except ET.ParseError:
-        return ()
+    except ET.ParseError as e:
+        raise ValueError(f"Malformed tags_xml: {e}") from e
+    if root.tag != "tags":
+        raise ValueError(f"Not a tags element (root tag: {root.tag!r})")
     out: list[str] = []
     for child in root.findall("tag"):
         text = (child.text or "").strip()

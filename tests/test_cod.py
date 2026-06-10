@@ -1,4 +1,7 @@
+import xml.etree.ElementTree as ET
 from pathlib import Path
+
+import pytest
 
 from cod_sync import cod
 
@@ -56,6 +59,22 @@ def test_tags_xml_to_list_reads_tag_children():
 def test_tags_xml_to_list_skips_blank_tag_text():
     xml = "<tags><tag>Budget</tag><tag>   </tag><tag></tag><tag>Combo</tag></tags>"
     assert cod.tags_xml_to_list(xml) == ("Budget", "Combo")
+
+
+def test_tags_xml_to_list_raises_on_malformed_xml():
+    with pytest.raises(ValueError, match="Malformed tags_xml") as excinfo:
+        cod.tags_xml_to_list("<tags><tag>Budget</tags>")
+    assert isinstance(excinfo.value.__cause__, ET.ParseError)
+
+
+def test_tags_xml_to_list_raises_on_empty_string():
+    with pytest.raises(ValueError, match="Malformed tags_xml"):
+        cod.tags_xml_to_list("")
+
+
+def test_tags_xml_to_list_raises_on_wrong_root_tag():
+    with pytest.raises(ValueError, match="root tag: 'foo'"):
+        cod.tags_xml_to_list("<foo><tag>Budget</tag></foo>")
 
 
 def test_tags_list_to_xml_empty_emits_self_closing():
