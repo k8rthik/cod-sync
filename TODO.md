@@ -18,38 +18,6 @@ Tier guide:
 
 ## P1 — correctness, data-loss, architectural blockers
 
-### `tags_xml_to_list` swallows malformed XML as "no tags"
-
-`cod_sync/cod.py:103-115`: a `ParseError` is caught and returns `()`.
-That means a hand-corrupted `<tags>` element silently becomes an empty
-tag set, and the next sync union-merges remote tags onto an empty local
-set — overwriting the corrupted blob and **losing every local tag the
-user had stored** without any signal. The catch was added so a broken
-file wouldn't crash the parser, but the cost is silent data loss.
-
-- [ ] Decide whether to re-raise (force user to fix) or warn-and-empty;
-      surface the choice via `AskUserQuestion` if uncertain.
-- [ ] If warn-and-empty: print to `sys.stderr` once per process with the
-      deck path so the user sees the regression.
-- [ ] Add a test in `tests/test_cod.py` with a malformed `<tags>` blob
-      asserting the chosen behavior.
-
-### `_save_disk_cache` silently swallows every OSError
-
-`cod_sync/alt_name.py:189-199`: best-effort write that masks permission
-errors, disk-full, and parent-not-creatable failures. On a system where
-the user's cache dir is unwritable, every sync silently re-fetches the
-same Scryfall names forever and the user has no signal — looks like
-"network is slow" instead of "your cache is broken." A one-time
-stderr message per process is enough; we don't need to abort.
-
-- [ ] Add a module-level `_disk_cache_warned: bool` flag.
-- [ ] On the first `OSError` in `_save_disk_cache`, print a one-line
-      warning to `sys.stderr` naming the cache path and the error.
-- [ ] Subsequent failures stay silent so we don't spam a long walk.
-- [ ] Add a test that monkeypatches `path.open` to raise and asserts the
-      single warning fires.
-
 ### Walk `stats` dict silently swallows non-keyed outcomes
 
 `cod_sync/cli/walk.py:37` initializes `stats` with only `updated`,
