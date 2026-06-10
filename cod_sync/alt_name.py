@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -54,16 +55,19 @@ _SEED: dict[str, str] = _seed_data.SEED
 #                  entries are added
 #   _session     — keep-alive HTTP session so Scryfall batches reuse TCP/TLS
 #   _cache_path_cache — env-resolved Path; saves an env lookup per call
-# All three are reset by `_reset_state_for_tests()` between pytest tests.
+#   _warned_save_failure — cache-write failures warn on stderr once, not per call
+# All of these are reset by `_reset_state_for_tests()` between pytest tests.
 
 _disk_cache: dict[str, str] | None = None
 _session: requests.Session | None = None
+_warned_save_failure: bool = False
 
 
 def _reset_state_for_tests() -> None:
     """Drop process memoization. Call between tests so env changes take effect."""
-    global _disk_cache, _session
+    global _disk_cache, _session, _warned_save_failure
     _disk_cache = None
+    _warned_save_failure = False
     if _session is not None:
         try:
             _session.close()
@@ -187,7 +191,9 @@ def _read_disk_cache() -> dict[str, str]:
 
 
 def _save_disk_cache(cache: dict[str, str]) -> None:
-    """Persist the in-memory cache. Best-effort: failures are silent."""
+    """Persist the in-memory cache. Best-effort: never raises, but warns on
+    stderr once per process so an unwritable cache doesn't degrade silently."""
+    global _warned_save_failure
     path = _cache_path()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -195,8 +201,14 @@ def _save_disk_cache(cache: dict[str, str]) -> None:
         # cache is only ever read by us, so prettiness costs more than it pays.
         with path.open("w", encoding="utf-8") as f:
             json.dump(cache, f, separators=(",", ":"), sort_keys=True)
-    except OSError:
-        pass
+    except OSError as e:
+        if not _warned_save_failure:
+            _warned_save_failure = True
+            print(
+                f"warning: could not write alt-name cache to {path}: {e}; "
+                "card-name lookups will not be cached across runs",
+                file=sys.stderr,
+            )
 
 
 # ----- Scryfall ------------------------------------------------------------

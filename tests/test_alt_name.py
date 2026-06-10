@@ -88,6 +88,41 @@ def test_corrupt_cache_is_tolerated(tmp_path, monkeypatch):
     assert out == {"Unstable Harmonics": "Rhystic Study", "Sol Ring": "Sol Ring"}
 
 
+def test_save_failure_warns_to_stderr(tmp_path, monkeypatch, capsys):
+    """An unwritable cache must not raise, but must tell the user — silence
+    means every future run re-pays the Scryfall round-trip with no clue why."""
+    blocker = tmp_path / "blocker"
+    blocker.write_text("")  # a file where a directory is needed → mkdir raises
+    monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(blocker))
+
+    alt_name._save_disk_cache({"New Reskin": "Real Card"})
+
+    err = capsys.readouterr().err
+    assert "warning:" in err
+    assert str(blocker) in err
+
+
+def test_save_failure_warns_only_once_per_process(tmp_path, monkeypatch, capsys):
+    blocker = tmp_path / "blocker"
+    blocker.write_text("")
+    monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(blocker))
+
+    alt_name._save_disk_cache({"New Reskin": "Real Card"})
+    alt_name._save_disk_cache({"New Reskin": "Real Card"})
+
+    assert capsys.readouterr().err.count("warning:") == 1
+
+
+def test_save_success_is_silent(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
+
+    alt_name._save_disk_cache({"New Reskin": "Real Card"})
+
+    assert capsys.readouterr().err == ""
+    cached = json.loads((tmp_path / "cod-sync" / "alt_names.json").read_text())
+    assert cached == {"New Reskin": "Real Card"}
+
+
 # ----- Scryfall fallback ---------------------------------------------------
 
 
