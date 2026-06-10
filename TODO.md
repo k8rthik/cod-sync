@@ -35,30 +35,6 @@ create files will lose the count silently.
       `SyncOutcome` with status `"created"` and asserts the new
       contract (either it appears in the footer, or the assert fires).
 
-### `cli/__init__.py` re-exports are a load-bearing test seam
-
-`cod_sync/cli/__init__.py:33-95` re-exports ~15 private names purely so
-tests can monkeypatch `cod_sync.cli._confirm`, `_walk_directory`,
-`_sync_file`, etc. The submodules then reach back through
-`cli._confirm` (`cli/sync.py:115, 133`) instead of importing
-`prompts._confirm` directly, because the test patches won't propagate
-otherwise. The order-of-imports comment at lines 80-83 documents the
-fragility: rearranging the re-export block partially-loads the package
-and breaks downstream imports. The package shape is dictated by test
-infrastructure, not by domain boundaries.
-
-- [ ] Audit `tests/` for every patch path that targets
-      `cod_sync.cli.<name>`. Catalog the list.
-- [ ] Rewrite each patch to target the submodule where the function
-      actually lives (e.g. `cod_sync.cli.prompts._confirm`).
-- [ ] Remove all `noqa: F401` re-exports from `cli/__init__.py`.
-- [ ] Rewrite the `cli.<name>` reach-backs inside `sync.py` to import
-      from siblings directly (`from .prompts import _confirm`).
-- [ ] Move `_route` and `_route_info` out of `cli/__init__.py` and into
-      `cli/routing.py` where they belong.
-- [ ] Confirm `pre-commit run --all-files` and the full pytest suite
-      are green, then delete the order-of-imports comment block.
-
 ### `alt_name` module-level mutable globals block concurrency
 
 `cod_sync/alt_name.py:59-72`: `_disk_cache` and `_session` are
@@ -78,6 +54,17 @@ host (web service, GUI) races on the disk cache mutation in
 ---
 
 ## P2 — real value, moderate urgency
+
+### `python -m cod_sync` swallows exit codes
+
+`cod_sync/__main__.py` calls `main()` without wrapping it in
+`sys.exit(...)`, so `python -m cod_sync` exits 0 even when the CLI
+reports an error (the `cod-sync` console script is unaffected — the
+entry-point wrapper propagates the return value). Exit codes are part
+of the documented CLI contract, so a scripted caller invoking via
+`-m` silently loses failure signals. One-line fix; the interesting
+part is adding a test that runs the module form in a subprocess so
+the regression can't return.
 
 ### Walk error-recovery summary
 
@@ -264,17 +251,6 @@ rewrite happened.
 - [ ] Return `deck` early when `dirty is False` after the single pass.
 - [ ] Confirm `tests/test_alt_name_perf.py` still meets its budget.
 
-### `_route` lives in `cli/__init__.py` instead of `cli/routing.py`
-
-`cod_sync/cli/__init__.py:152-222`: dispatch logic sits in the
-package's `__init__.py` because the re-export pattern requires it.
-Covered by the P1 re-exports item above — re-listed here as the
-follow-up cleanup.
-
-- [ ] Move `_route` and `_route_info` to `cli/routing.py` once the
-      re-export tangle is gone.
-- [ ] Update `cli/__init__.py:main()` to call `routing._route(...)`.
-
 ### `_build_new_deck` is dead code
 
 `cod_sync/cli/apply.py:13-24` is defined and re-exported in
@@ -323,14 +299,6 @@ Scryfall fetch *just to check whether the banner needs flipping*.
 ---
 
 ## P3 — polish, micro-optimizations, drift cleanup
-
-### `from cod_sync import sources as sources` self-alias
-
-`cod_sync/cli/__init__.py:27`: the `sources as sources` alias is a
-ruff-pleaser for "imported but unused" because tests patch
-`cod_sync.cli.sources.fetch`. Disappears with the P1 re-export rework.
-
-- [ ] After the P1 re-export cleanup lands, remove this line entirely.
 
 ### `canonicalize` docstring lies about the fast path
 
