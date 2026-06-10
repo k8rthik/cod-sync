@@ -111,6 +111,7 @@ Before bumping, an agent must:
 
 | Version | Tier   | What changed                                                                 |
 |---------|--------|------------------------------------------------------------------------------|
+| 0.11.2  | PATCH  | Defensive guard in the `--info` quantity-column width (`max(..., default=1)`) so an empty totals set can never raise; regression test locks all-zero-quantity zone rendering. No observable behavior change. |
 | 0.11.1  | PATCH  | Alt-name disk-cache write failures now warn on stderr (once per process) instead of failing silently — an unwritable cache previously re-paid the Scryfall round-trip every run with no clue why. User-confirmed PATCH: failure-path visibility fix, no contract surface touched. |
 | 0.11.0  | MINOR  | Directory walk now prompts on deckname mismatches the way single-file sync already did, instead of silently ignoring them. `_sync_deck`'s per-mode policy knobs were deleted; sync, import, and walk share one identical per-deck code path. `-y` still means accept-all in every mode. |
 | 0.10.0  | MINOR  | Source-fetch failures now render type-specific messages (deck-not-found, private, rate-limited, server-error, network, malformed-response, invalid-source) instead of a single collapsed "failed to fetch" line, so the message tells the user what to do about it. Exit codes unchanged. |
