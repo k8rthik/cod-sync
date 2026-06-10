@@ -14,10 +14,9 @@ from pathlib import Path
 
 from cod_sync import cod, errors, sources, sourcetag
 
-from . import _state
+from . import _state, routing
 from .formatting import _BOLD, _CYAN, _DIM, _RESET, _format_source_error
 from .prompts import _ask_walk_stored
-from .routing import _is_url
 from .sync import _sync_deck
 
 
@@ -95,7 +94,7 @@ def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool
             remote.name,
             remote.tags,
             is_new_file=False,
-            url_to_remember=source if _is_url(source) else None,
+            url_to_remember=source if routing._is_url(source) else None,
             yes=yes,
             dry_run=dry_run,
             indent="  ",

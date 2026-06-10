@@ -7,7 +7,8 @@ queue and a stubbed `sources.fetch`.
 
 from __future__ import annotations
 
-from cod_sync import cli, cod, sourcetag
+from cod_sync import cod, sourcetag
+from cod_sync.cli.walk import _walk_directory
 from cod_sync.sources import RemoteDeck
 
 URL_STORED = "https://archidekt.com/decks/12345"
@@ -35,7 +36,7 @@ def _stub_fetch(monkeypatch):
         calls.append(src)
         return RemoteDeck(name="", zones={"main": {"Sol Ring": 1}, "side": {}})
 
-    monkeypatch.setattr("cod_sync.cli.sources.fetch", fake_fetch)
+    monkeypatch.setattr("cod_sync.sources.fetch", fake_fetch)
     return calls
 
 
@@ -60,7 +61,7 @@ def test_stored_url_enter_accepts(tmp_path, monkeypatch):
     fetched = _stub_fetch(monkeypatch)
     _queue_input(monkeypatch, [""])
 
-    rc = cli._walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
+    rc = _walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
 
     assert rc == 0
     assert fetched == [URL_STORED]
@@ -71,7 +72,7 @@ def test_stored_url_y_accepts(tmp_path, monkeypatch):
     fetched = _stub_fetch(monkeypatch)
     _queue_input(monkeypatch, ["y"])
 
-    cli._walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
+    _walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
 
     assert fetched == [URL_STORED]
 
@@ -81,7 +82,7 @@ def test_stored_url_n_skips(tmp_path, monkeypatch, capsys):
     fetched = _stub_fetch(monkeypatch)
     _queue_input(monkeypatch, ["n"])
 
-    cli._walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
+    _walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
 
     assert fetched == []
     out = capsys.readouterr().out
@@ -94,7 +95,7 @@ def test_stored_url_q_quits_before_remaining_files(tmp_path, monkeypatch):
     fetched = _stub_fetch(monkeypatch)
     _queue_input(monkeypatch, ["q"])
 
-    cli._walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
+    _walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
 
     assert fetched == []
 
@@ -109,7 +110,7 @@ def test_stored_url_yes_flag_suppresses_prompt(tmp_path, monkeypatch):
 
     monkeypatch.setattr("builtins.input", boom)
 
-    cli._walk_directory(str(tmp_path), recursive=False, yes=True, dry_run=False)
+    _walk_directory(str(tmp_path), recursive=False, yes=True, dry_run=False)
 
     assert fetched == [URL_STORED]
 
@@ -119,7 +120,7 @@ def test_stored_url_garbage_then_accept(tmp_path, monkeypatch):
     fetched = _stub_fetch(monkeypatch)
     _queue_input(monkeypatch, ["huh?", "wat", "y"])
 
-    cli._walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
+    _walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
 
     assert fetched == [URL_STORED]
 
@@ -134,7 +135,7 @@ def test_stored_url_eof_quits(tmp_path, monkeypatch):
 
     monkeypatch.setattr("builtins.input", fake_input)
 
-    cli._walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
+    _walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
 
     assert fetched == []
 
@@ -147,7 +148,7 @@ def test_no_stored_url_user_types_url(tmp_path, monkeypatch):
     fetched = _stub_fetch(monkeypatch)
     _queue_input(monkeypatch, [URL_TYPED])
 
-    cli._walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
+    _walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
 
     assert fetched == [URL_TYPED]
     # Marker should now be stashed.
@@ -160,7 +161,7 @@ def test_no_stored_url_empty_skips(tmp_path, monkeypatch, capsys):
     fetched = _stub_fetch(monkeypatch)
     _queue_input(monkeypatch, [""])
 
-    cli._walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
+    _walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
 
     assert fetched == []
     assert "skipped=1" in capsys.readouterr().out
@@ -172,7 +173,7 @@ def test_no_stored_url_q_quits(tmp_path, monkeypatch):
     fetched = _stub_fetch(monkeypatch)
     _queue_input(monkeypatch, ["q"])
 
-    cli._walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
+    _walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
 
     assert fetched == []
 
@@ -181,7 +182,7 @@ def test_no_stored_url_q_quits(tmp_path, monkeypatch):
 #
 # Walk used to suppress the deckname-mismatch prompt that single-file sync
 # fires. After unifying `_sync_deck`'s per-deck logic, walk should hit the
-# same `cli._confirm` path. URL-conflict parity isn't tested here because
+# same `prompts._confirm` path. URL-conflict parity isn't tested here because
 # walk only ever syncs against the stored URL (or none-then-store), so
 # `stored == url_to_remember` always holds and the conflict branch is
 # structurally unreachable from this entrypoint.
@@ -193,7 +194,7 @@ def _stub_fetch_named(monkeypatch, remote_name):
     def fake_fetch(_src):
         return RemoteDeck(name=remote_name, zones={"main": {"Sol Ring": 1}, "side": {}})
 
-    monkeypatch.setattr("cod_sync.cli.sources.fetch", fake_fetch)
+    monkeypatch.setattr("cod_sync.sources.fetch", fake_fetch)
 
 
 def test_walk_prompts_deckname_mismatch_accept(tmp_path, monkeypatch):
@@ -207,9 +208,9 @@ def test_walk_prompts_deckname_mismatch_accept(tmp_path, monkeypatch):
         confirm_calls.append(prompt)
         return True
 
-    monkeypatch.setattr("cod_sync.cli._confirm", fake_confirm)
+    monkeypatch.setattr("cod_sync.cli.prompts._confirm", fake_confirm)
 
-    cli._walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
+    _walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
 
     assert len(confirm_calls) == 1
     assert "Local" in confirm_calls[0]
@@ -222,9 +223,9 @@ def test_walk_prompts_deckname_mismatch_decline(tmp_path, monkeypatch):
     _stub_fetch_named(monkeypatch, "Remote")
     _queue_input(monkeypatch, [""])
 
-    monkeypatch.setattr("cod_sync.cli._confirm", lambda *a, **kw: False)
+    monkeypatch.setattr("cod_sync.cli.prompts._confirm", lambda *a, **kw: False)
 
-    cli._walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
+    _walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
 
     assert cod.load(str(tmp_path / "a.cod")).deckname == "Local"
 
@@ -240,6 +241,6 @@ def test_walk_yes_flag_auto_updates_deckname(tmp_path, monkeypatch):
 
     monkeypatch.setattr("builtins.input", boom)
 
-    cli._walk_directory(str(tmp_path), recursive=False, yes=True, dry_run=False)
+    _walk_directory(str(tmp_path), recursive=False, yes=True, dry_run=False)
 
     assert cod.load(str(tmp_path / "a.cod")).deckname == "Remote"

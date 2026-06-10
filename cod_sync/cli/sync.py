@@ -19,9 +19,9 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal
 
-from cod_sync import alt_name, cli, cod, diff, errors, sources, sourcetag
+from cod_sync import alt_name, cod, diff, errors, sources, sourcetag
 
-from . import _state
+from . import _state, prompts, routing
 from .apply import _apply, _import_preview_changes
 from .formatting import (
     _BOLD,
@@ -31,8 +31,6 @@ from .formatting import (
     _print_summary,
     _sanitize_filename,
 )
-from .prompts import _names_differ, _review
-from .routing import _is_url
 
 SyncStatus = Literal["no_change", "updated", "created", "skipped", "dry_run"]
 
@@ -99,7 +97,7 @@ def _sync_deck(
                 return SyncOutcome("skipped", 0, False, False)
         approved = changes
     else:
-        approved = (changes if yes else _review(changes, indent=indent)) if changes else []
+        approved = (changes if yes else prompts._review(changes, indent=indent)) if changes else []
 
     final_deck = _apply(deck, approved) if approved else deck
 
@@ -109,10 +107,8 @@ def _sync_deck(
         if new_deckname != final_deck.deckname:
             final_deck = replace(final_deck, deckname=new_deckname)
             deckname_changed = True
-    elif remote_name and _names_differ(remote_name, final_deck.deckname):
-        # cli._confirm (not prompts._confirm) so test patches on
-        # `cod_sync.cli._confirm` reach this call site.
-        if cli._confirm(
+    elif remote_name and prompts._names_differ(remote_name, final_deck.deckname):
+        if prompts._confirm(
             f"Local name:  {final_deck.deckname or '(none)'}\n"
             f"Remote name: {remote_name}\n"
             f"Update deckname?",
@@ -128,9 +124,7 @@ def _sync_deck(
         if stored is None or stored == url_to_remember:
             update = True
         else:
-            # cli._confirm (not prompts._confirm) so test patches on
-            # `cod_sync.cli._confirm` reach this call site.
-            update = cli._confirm(
+            update = prompts._confirm(
                 f"Stored URL: {stored}\nNew URL:    {url_to_remember}\nUpdate stored URL?",
                 default=False,
                 auto_yes=yes,
@@ -264,7 +258,7 @@ def _sync_file(cod_path: str, url: str | None, *, yes: bool, dry_run: bool) -> i
         remote.name,
         remote.tags,
         is_new_file=not exists,
-        url_to_remember=url if _is_url(url) else None,
+        url_to_remember=url if routing._is_url(url) else None,
         yes=yes,
         dry_run=dry_run,
     )

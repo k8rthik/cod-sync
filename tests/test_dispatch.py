@@ -29,9 +29,9 @@ class _Spy:
 @pytest.fixture
 def spies(monkeypatch):
     walk, sync_file, bare = _Spy(), _Spy(), _Spy()
-    monkeypatch.setattr("cod_sync.cli._walk_directory", walk)
-    monkeypatch.setattr("cod_sync.cli._sync_file", sync_file)
-    monkeypatch.setattr("cod_sync.cli._create_from_bare_url", bare)
+    monkeypatch.setattr("cod_sync.cli.walk._walk_directory", walk)
+    monkeypatch.setattr("cod_sync.cli.sync._sync_file", sync_file)
+    monkeypatch.setattr("cod_sync.cli.sync._create_from_bare_url", bare)
     return {"walk": walk, "sync_file": sync_file, "bare": bare}
 
 

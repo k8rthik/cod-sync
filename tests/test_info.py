@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from cod_sync import cli, cod
+from cod_sync.cli.formatting import _show_info
 
 URL = "https://www.moxfield.com/decks/abc123"
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
@@ -58,7 +59,7 @@ def test_info_shows_deckname_and_format(tmp_path, capsys):
     cod_path = tmp_path / "named.cod"
     _write_deck(cod_path, deckname="My EDH Pile", format_="commander", main={"Sol Ring": 1})
 
-    rc = cli._show_info(str(cod_path))
+    rc = _show_info(str(cod_path))
     out = _plain(capsys.readouterr().out)
 
     assert rc == 0
@@ -70,7 +71,7 @@ def test_info_shows_unnamed_deck_marker(tmp_path, capsys):
     cod_path = tmp_path / "blank.cod"
     _write_deck(cod_path, deckname="", main={"Sol Ring": 1})
 
-    cli._show_info(str(cod_path))
+    _show_info(str(cod_path))
     out = _plain(capsys.readouterr().out)
 
     assert "(unnamed deck)" in out
@@ -80,7 +81,7 @@ def test_info_shows_stored_source_url(tmp_path, capsys):
     cod_path = tmp_path / "withurl.cod"
     _write_deck(cod_path, comments=f"cod-sync-source: {URL}", main={"Sol Ring": 1})
 
-    cli._show_info(str(cod_path))
+    _show_info(str(cod_path))
     out = _plain(capsys.readouterr().out)
 
     assert f"source: {URL}" in out
@@ -90,7 +91,7 @@ def test_info_shows_no_stored_url_marker(tmp_path, capsys):
     cod_path = tmp_path / "nourl.cod"
     _write_deck(cod_path, main={"Sol Ring": 1})
 
-    cli._show_info(str(cod_path))
+    _show_info(str(cod_path))
     out = _plain(capsys.readouterr().out)
 
     assert "(none stored)" in out
@@ -100,7 +101,7 @@ def test_info_shows_banner_when_set(tmp_path, capsys):
     cod_path = tmp_path / "withbanner.cod"
     _write_deck(cod_path, banner_card_name="Atraxa, Praetors' Voice", main={"Sol Ring": 1})
 
-    cli._show_info(str(cod_path))
+    _show_info(str(cod_path))
     out = _plain(capsys.readouterr().out)
 
     assert "banner: Atraxa, Praetors' Voice" in out
@@ -110,7 +111,7 @@ def test_info_omits_banner_when_absent(tmp_path, capsys):
     cod_path = tmp_path / "nobanner.cod"
     _write_deck(cod_path, banner_card_name=None, main={"Sol Ring": 1})
 
-    cli._show_info(str(cod_path))
+    _show_info(str(cod_path))
     out = _plain(capsys.readouterr().out)
 
     assert "banner:" not in out
@@ -120,7 +121,7 @@ def test_info_zone_counts(tmp_path, capsys):
     cod_path = tmp_path / "counts.cod"
     _write_deck(cod_path, main={"Sol Ring": 1, "Forest": 10, "Lightning Bolt": 4})
 
-    cli._show_info(str(cod_path))
+    _show_info(str(cod_path))
     out = _plain(capsys.readouterr().out)
 
     # Main: 15 cards (1 + 10 + 4), 3 unique
@@ -131,7 +132,7 @@ def test_info_lists_cards_alphabetically(tmp_path, capsys):
     cod_path = tmp_path / "alpha.cod"
     _write_deck(cod_path, main={"Sol Ring": 1, "Arcane Signet": 1, "Forest": 10})
 
-    cli._show_info(str(cod_path))
+    _show_info(str(cod_path))
     out = _plain(capsys.readouterr().out)
 
     # Locate the listing in the output and verify the order.
@@ -148,7 +149,7 @@ def test_info_shows_total_across_zones(tmp_path, capsys):
     cod_path = tmp_path / "totals.cod"
     _write_deck(cod_path, main={"Sol Ring": 1, "Forest": 10}, side={"Pyroblast": 2})
 
-    cli._show_info(str(cod_path))
+    _show_info(str(cod_path))
     out = _plain(capsys.readouterr().out)
 
     assert "[main] 11 cards" in out
@@ -160,7 +161,7 @@ def test_info_handles_empty_deck(tmp_path, capsys):
     cod_path = tmp_path / "empty.cod"
     _write_deck(cod_path)
 
-    rc = cli._show_info(str(cod_path))
+    rc = _show_info(str(cod_path))
     out = _plain(capsys.readouterr().out)
 
     assert rc == 0
@@ -173,7 +174,7 @@ def test_info_handles_all_zero_quantity_zone(tmp_path, capsys):
     cod_path = tmp_path / "zeroes.cod"
     _write_deck(cod_path, main={"Giant Growth": 0, "Llanowar Elves": 0})
 
-    rc = cli._show_info(str(cod_path))
+    rc = _show_info(str(cod_path))
     out = _plain(capsys.readouterr().out)
 
     assert rc == 0
@@ -187,7 +188,7 @@ def test_info_pin_count_reflects_set_short_name(tmp_path, capsys):
     cod_path = tmp_path / "pinned.cod"
     _write_deck(cod_path, main={"Sol Ring": 1, "Forest": 5}, pinned_set="LCI")
 
-    cli._show_info(str(cod_path))
+    _show_info(str(cod_path))
     out = _plain(capsys.readouterr().out)
 
     # 6 cards total, all pinned
@@ -211,7 +212,7 @@ def test_info_rolls_up_multi_printing_entries(tmp_path):
 
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        cli._show_info(str(path))
+        _show_info(str(path))
     out = _plain(buf.getvalue())
 
     assert "4 Nazgûl" in out
@@ -226,7 +227,7 @@ def test_main_dispatches_info_to_show_info(tmp_path, monkeypatch):
     _write_deck(tmp_path / "x.cod", main={"Sol Ring": 1})
 
     called: list = []
-    monkeypatch.setattr("cod_sync.cli._show_info", lambda p: called.append(p) or 0)
+    monkeypatch.setattr("cod_sync.cli.formatting._show_info", lambda p: called.append(p) or 0)
 
     rc = cli.main(["x.cod", "--info"])
 
@@ -239,7 +240,7 @@ def test_info_short_flag_dispatches_too(tmp_path, monkeypatch):
     _write_deck(tmp_path / "x.cod", main={"Sol Ring": 1})
 
     called: list = []
-    monkeypatch.setattr("cod_sync.cli._show_info", lambda p: called.append(p) or 0)
+    monkeypatch.setattr("cod_sync.cli.formatting._show_info", lambda p: called.append(p) or 0)
 
     cli.main(["x.cod", "-i"])
 
@@ -252,7 +253,7 @@ def test_info_resolves_cod_suffix(tmp_path, monkeypatch):
     _write_deck(tmp_path / "x.cod", main={"Sol Ring": 1})
 
     called: list = []
-    monkeypatch.setattr("cod_sync.cli._show_info", lambda p: called.append(p) or 0)
+    monkeypatch.setattr("cod_sync.cli.formatting._show_info", lambda p: called.append(p) or 0)
 
     cli.main(["x", "-i"])
 

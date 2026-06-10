@@ -18,7 +18,7 @@ import pytest
 import requests
 
 from cod_sync import errors, sources
-from cod_sync.cli import _format_source_error
+from cod_sync.cli.formatting import _format_source_error
 from cod_sync.sources import archidekt, moxfield
 
 

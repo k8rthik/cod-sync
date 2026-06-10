@@ -1,15 +1,22 @@
-"""URL detection and deck-path resolution helpers.
+"""Target classification and dispatch.
 
-Pure helpers with no I/O beyond ``os.path.exists`` checks. The actual
-``_route`` / ``_route_info`` dispatchers live in ``cli/__init__.py``
-where they can see the re-exported flow functions (so monkeypatches on
-``cod_sync.cli._walk_directory`` etc. reach them at call time).
+``_route`` / ``_route_info`` classify the CLI target (directory, deck
+file, or URL) and dispatch to the matching flow. Flow functions are
+invoked through sibling module objects (``sync._sync_file``,
+``walk._walk_directory``, ``formatting._show_info``) so monkeypatches
+on the defining modules are seen at call time. ``sync`` and ``walk``
+import this module back for ``_is_url``; the cycle is harmless because
+every cross-module reference resolves at call time, never at import
+time.
 """
 
 from __future__ import annotations
 
 import os
 import re
+import sys
+
+from . import formatting, sync, walk
 
 _URL_RE = re.compile(r"^https?://", re.IGNORECASE)
 
@@ -29,3 +36,76 @@ def _resolve_deck_path(name: str) -> str | None:
 
 def _ensure_cod_suffix(name: str) -> str:
     return name if name.endswith(".cod") else name + ".cod"
+
+
+def _route(
+    target: str | None, url: str | None, *, recursive: bool, yes: bool, dry_run: bool, info: bool
+) -> int:
+    """Classify TARGET and dispatch."""
+    if info:
+        return _route_info(target, url)
+
+    if target is None and url is None:
+        return walk._walk_directory(".", recursive=recursive, yes=yes, dry_run=dry_run)
+
+    # Bare URL given as the only arg (argparse binds it to `target`).
+    if target is not None and _is_url(target):
+        if url is not None:
+            print(
+                "error: two URLs given. Pass a file path or directory as the first argument.",
+                file=sys.stderr,
+            )
+            return 2
+        return sync._create_from_bare_url(target, yes=yes, dry_run=dry_run)
+
+    # Defensive: argparse won't actually produce (None, URL); cover it anyway.
+    if target is None and url is not None:
+        return sync._create_from_bare_url(url, yes=yes, dry_run=dry_run)
+
+    assert target is not None  # narrowed by the four returning branches above
+
+    # Directory target.
+    if os.path.isdir(target):
+        if url is not None:
+            print(
+                f"error: can't sync a directory against a single URL. "
+                f"Pass a deck file, or omit the URL to walk {target!r} interactively.",
+                file=sys.stderr,
+            )
+            return 2
+        return walk._walk_directory(target, recursive=recursive, yes=yes, dry_run=dry_run)
+
+    # Otherwise: file path. Resolve `foo` → `foo.cod` if present, else treat as new.
+    resolved = _resolve_deck_path(target)
+    cod_path = resolved if resolved is not None else _ensure_cod_suffix(target)
+
+    if resolved is None and url is None:
+        print(
+            f"error: {cod_path} doesn't exist and no URL was provided.",
+            file=sys.stderr,
+        )
+        return 2
+
+    return sync._sync_file(cod_path, url, yes=yes, dry_run=dry_run)
+
+
+def _route_info(target: str | None, url: str | None) -> int:
+    """Dispatch for --info. Requires a file target, refuses URL/dir."""
+    if target is None:
+        print("error: --info needs a deck file. Usage: cod-sync FILE --info", file=sys.stderr)
+        return 2
+    if url is not None:
+        print("error: --info doesn't take a URL.", file=sys.stderr)
+        return 2
+    if _is_url(target):
+        print("error: --info needs a local deck file, not a URL.", file=sys.stderr)
+        return 2
+    if os.path.isdir(target):
+        print(f"error: --info needs a deck file, not a directory ({target}).", file=sys.stderr)
+        return 2
+
+    resolved = _resolve_deck_path(target)
+    if resolved is None:
+        print(f"error: deck file not found: {target}", file=sys.stderr)
+        return 2
+    return formatting._show_info(resolved)

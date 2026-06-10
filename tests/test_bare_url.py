@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import pytest
 
-from cod_sync import cli, cod
+from cod_sync import cod
+from cod_sync.cli.formatting import _sanitize_filename
+from cod_sync.cli.sync import _create_from_bare_url
 from cod_sync.sources import RemoteDeck
 
 URL = "https://www.moxfield.com/decks/abc123"
@@ -26,14 +28,14 @@ def _remote(zones, name=""):
 def test_writes_sanitized_title_in_cwd(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "cod_sync.cli.sources.fetch",
+        "cod_sync.sources.fetch",
         lambda _src: _remote(
             {"main": {"Sol Ring": 1}, "side": {}},
             name="Atraxa Superfriends!",
         ),
     )
 
-    rc = cli._create_from_bare_url(URL, yes=True, dry_run=False)
+    rc = _create_from_bare_url(URL, yes=True, dry_run=False)
 
     assert rc == 0
     expected = tmp_path / "atraxa_superfriends.cod"
@@ -44,13 +46,13 @@ def test_writes_sanitized_title_in_cwd(tmp_path, monkeypatch):
 def test_lowercases_and_drops_punctuation(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "cod_sync.cli.sources.fetch",
+        "cod_sync.sources.fetch",
         lambda _src: _remote(
             {"main": {"Sol Ring": 1}, "side": {}}, name="Storm/the/Vault: A Deck!"
         ),
     )
 
-    cli._create_from_bare_url(URL, yes=True, dry_run=False)
+    _create_from_bare_url(URL, yes=True, dry_run=False)
 
     assert (tmp_path / "stormthevault_a_deck.cod").exists()
 
@@ -58,11 +60,11 @@ def test_lowercases_and_drops_punctuation(tmp_path, monkeypatch):
 def test_falls_back_to_imported_deck_when_title_empty(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "cod_sync.cli.sources.fetch",
+        "cod_sync.sources.fetch",
         lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name=""),
     )
 
-    cli._create_from_bare_url(URL, yes=True, dry_run=False)
+    _create_from_bare_url(URL, yes=True, dry_run=False)
 
     assert (tmp_path / "imported_deck.cod").exists()
 
@@ -70,11 +72,11 @@ def test_falls_back_to_imported_deck_when_title_empty(tmp_path, monkeypatch):
 def test_falls_back_when_title_is_all_punctuation(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "cod_sync.cli.sources.fetch",
+        "cod_sync.sources.fetch",
         lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="!!!???"),
     )
 
-    cli._create_from_bare_url(URL, yes=True, dry_run=False)
+    _create_from_bare_url(URL, yes=True, dry_run=False)
 
     assert (tmp_path / "imported_deck.cod").exists()
 
@@ -91,14 +93,14 @@ def test_syncs_existing_target_against_url(tmp_path, monkeypatch, capsys):
     cod.save(existing, str(tmp_path / "atraxa.cod"))
 
     monkeypatch.setattr(
-        "cod_sync.cli.sources.fetch",
+        "cod_sync.sources.fetch",
         lambda _src: _remote(
             {"main": {"Sol Ring": 1, "Counterspell": 4}, "side": {}},
             name="Atraxa",
         ),
     )
 
-    rc = cli._create_from_bare_url(URL, yes=True, dry_run=False)
+    rc = _create_from_bare_url(URL, yes=True, dry_run=False)
 
     assert rc == 0
     # The existing file is updated with the new card from the URL.
@@ -119,9 +121,9 @@ def test_fetch_failure_returns_error(tmp_path, monkeypatch, capsys):
     def boom(_src):
         raise errors.DeckPrivateError(URL)
 
-    monkeypatch.setattr("cod_sync.cli.sources.fetch", boom)
+    monkeypatch.setattr("cod_sync.sources.fetch", boom)
 
-    rc = cli._create_from_bare_url(URL, yes=True, dry_run=False)
+    rc = _create_from_bare_url(URL, yes=True, dry_run=False)
 
     assert rc == 2
     assert "private" in capsys.readouterr().err
@@ -129,10 +131,10 @@ def test_fetch_failure_returns_error(tmp_path, monkeypatch, capsys):
 
 
 def test_sanitize_filename_unit():
-    assert cli._sanitize_filename("Atraxa Superfriends") == "atraxa_superfriends"
-    assert cli._sanitize_filename("  spaces  ") == "spaces"
-    assert cli._sanitize_filename("multi   spaces") == "multi_spaces"
-    assert cli._sanitize_filename("__leading_trailing__") == "leading_trailing"
-    assert cli._sanitize_filename("") == ""
-    assert cli._sanitize_filename("!!!") == ""
-    assert cli._sanitize_filename("abc123-def") == "abc123-def"
+    assert _sanitize_filename("Atraxa Superfriends") == "atraxa_superfriends"
+    assert _sanitize_filename("  spaces  ") == "spaces"
+    assert _sanitize_filename("multi   spaces") == "multi_spaces"
+    assert _sanitize_filename("__leading_trailing__") == "leading_trailing"
+    assert _sanitize_filename("") == ""
+    assert _sanitize_filename("!!!") == ""
+    assert _sanitize_filename("abc123-def") == "abc123-def"

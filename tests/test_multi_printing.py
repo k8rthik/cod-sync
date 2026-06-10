@@ -3,7 +3,7 @@ with different printing pins (e.g. 9 Nazgûl, each its own uuid) must be
 treated as one logical card by both diff and apply."""
 
 from cod_sync import cod, diff
-from cod_sync.cli import _apply
+from cod_sync.cli.apply import _apply
 
 
 def _deck_with_nazgul_printings(n: int) -> cod.Deck:
