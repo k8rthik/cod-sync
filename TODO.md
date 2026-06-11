@@ -223,18 +223,6 @@ fetchers write into the dict in-place during parsing
       `sources/__init__.py:_canonicalize`) still work against the new
       type.
 
-### Source-canonicalization re-scans zones three times
-
-`cod_sync/sources/__init__.py:49-64`: `_canonicalize` walks every zone
-once to build `all_names`, once more for the `all(mapping.get(n, n) ==
-n)` short-circuit, and a third time to build `new_zones` if any
-rewrite happened.
-
-- [ ] Fold the identity check into the build loop with a `dirty: bool`
-      flag.
-- [ ] Return `deck` early when `dirty is False` after the single pass.
-- [ ] Confirm `tests/test_alt_name_perf.py` still meets its budget.
-
 ### `_build_new_deck` is dead code
 
 `cod_sync/cli/apply.py:13-24` is defined and re-exported in
@@ -265,78 +253,44 @@ P1 item.
 - [ ] Test that a batch of 10 unknown lookups produces exactly one disk
       write.
 
-### Banner check forces a canonicalize per sync
-
-`cod_sync/cli/sync.py:152-159`: `alt_name.canonicalize(original)` runs
-unconditionally for any deck with a banner. The function lazy-loads
-the disk cache (cheap, once per process), but every subsequent sync
-still pays a lookup, a `dfc.front_face` scan, and — if the banner is
-an unknown reskin not in the seed and the cache is cold — a real
-Scryfall fetch *just to check whether the banner needs flipping*.
-
-- [ ] Pre-compute the post-apply card-name set once.
-- [ ] Skip the `alt_name.canonicalize` call entirely when the banner
-      name is already in the set (the common case).
-- [ ] Test that a sync where the banner card is unchanged in the deck
-      makes zero alt_name lookups.
-
 ---
 
 ## P3 — polish, micro-optimizations, drift cleanup
 
-### `canonicalize` docstring lies about the fast path
+### Archidekt side-zone match is case-insensitive but Archidekt categories are not
 
-`cod_sync/alt_name.py:131-147`: the comment says "Fast path: seed-only
-lookup avoids the iterator/set construction" but the code checks the
-disk cache first, then the seed. The comment was true before the disk
-layer landed and rotted in place.
+`sources/archidekt.py` `_parse` lowercases a card's primary category
+before matching `_SIDE_CATEGORIES`. Archidekt itself treats category
+names as case-sensitive (a deck can hold both a built-in `Sideboard`
+and a user-made `SIdeboard` as distinct categories — observed in the
+wild on deck 23409517). A card whose *primary* category is a custom
+case-variant like `SIdeboard` renders in the mainboard on Archidekt
+but we'd route it to `side`. Secondary-label mis-zoning was fixed by
+the primary-category change; this residual case needs a real deck that
+hits it before deciding whether exact-case matching is worth the
+strictness.
 
-- [ ] Either rewrite the comment to reflect "disk → seed → network", **or**
-- [ ] Collapse `canonicalize` into `canonicalize_batch([name])[name]`
-      since the single-call wrapper buys very little once the disk
-      lookup is the same cost as in the batch path.
+### README says commanders land in `main`; the code routes them to `side`
 
-### Redundant `dfc.front_face` calls on already-stripped values
+`README.md` ("A few things worth knowing") claims commanders and
+companions end up in the `main` zone, but both fetchers route them to
+`side` (`sources/moxfield.py` `_BOARD_TO_ZONE`, `sources/archidekt.py`
+`_SIDE_CATEGORIES`), with code comments explaining that Cockatrice
+renders the commander pin only from the sideboard. The paragraph
+appears to predate that routing decision. Verify which behavior is
+intended (the code comments read deliberate) and rewrite the README
+paragraph to match.
 
-`cod_sync/alt_name.py:104, 122, 138, 144`: every seed and cache hit
-runs `dfc.front_face(v)` even though `refresh_seed.py:71-72` already
-strips both flavor and canonical, and `_save_disk_cache` only writes
-front-face values.
+### Text parser cannot keep Room names offline
 
-- [ ] Add a one-line assertion in `_read_disk_cache` that loaded values
-      contain no ` // ` separator (or strip-and-warn on load).
-- [ ] Drop the per-lookup `dfc.front_face` calls on the seed/disk hot
-      paths.
-- [ ] Keep the call on the Scryfall-result path (line 122) — that's the
-      one source that returns full-form names.
-
-### `_sanitize_filename` double-underscore collapse is O(n²)
-
-`cod_sync/cli/formatting.py:87-88`: `while "__" in s: s = s.replace(...)`
-rebuilds the string each iteration. Tiny in practice, textbook smell.
-
-- [ ] Replace the while-loop with `s = re.sub(r"_+", "_", s)`.
-- [ ] Add the compiled regex at module level if reused elsewhere.
-
-### Text-source compiles one regex per line
-
-`cod_sync/sources/text.py:47`: `re.match(r"^\s*SB:", raw)` is parsed
-on every line. Python's regex cache absorbs this in practice but
-`_LINE_RE` is already module-level — the inconsistency reads as
-"forgotten."
-
-- [ ] Hoist to `_SB_PREFIX_RE = re.compile(r"^\s*SB:")` next to
-      `_LINE_RE`.
-- [ ] Reuse in `parse()`.
-
-### `canonicalize_batch` distinct-set construction
-
-`cod_sync/alt_name.py:86-90`: `distinct: set[str] = set(); for n in
-names: if n: distinct.add(n)` is exactly `distinct = {n for n in names
-if n}`. Minor, but the explicit loop reads like the body is doing
-more than it is.
-
-- [ ] Replace with the set-comprehension form.
+`sources/text.py` strips every `A // B` line to the front half at parse
+time because plain text carries no layout info. Online this self-heals:
+the alt_name layer resolves the half-name through Scryfall and restores
+the full Room/split name. With `COD_SYNC_NO_NETWORK=1`, Room names typed
+in full form stay wrongly stripped. Fixing offline would need a bundled
+layout (or split-name) dictionary similar to `_seed_data.py` — probably
+not worth it until someone actually hits it; logged so the limitation is
+a decision, not an accident.
 
 ### Conventional Commits prefix is doc-only
 
