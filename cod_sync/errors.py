@@ -4,14 +4,18 @@ Every leaf maps to a distinct user remedy. The CLI chooses a message
 template per leaf type; the leaf itself carries just enough context
 (URL, HTTP status, retry-after) for that template to be useful.
 
-The module imports `requests` only for the `from_http_response` helper's
-type hint; the helper is the single shared place where HTTP status →
+The module references `requests` only for the `from_http_response`
+helper's type hint (so the import is type-checking-only and free at
+runtime); the helper is the single shared place where HTTP status →
 typed error mapping lives, so both source fetchers route through it.
 """
 
 from __future__ import annotations
 
-import requests
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import requests
 
 
 class SourceError(Exception):

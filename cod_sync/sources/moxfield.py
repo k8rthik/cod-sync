@@ -12,13 +12,11 @@ from __future__ import annotations
 import re
 from typing import Any
 
-import requests
-
 from .. import dfc, errors
+from . import _http
 from .types import RemoteDeck
 
 _API_BASE = "https://api2.moxfield.com/v3/decks/all/"
-_USER_AGENT = "cod-sync/0.1 (+local CLI for personal use)"
 _DECK_ID_RE = re.compile(r"/decks/([A-Za-z0-9_-]+)")
 
 # Moxfield board names → Cockatrice zone names.
@@ -34,13 +32,11 @@ _BOARD_TO_ZONE = {
 
 
 def fetch(url: str) -> RemoteDeck:
+    import requests  # deferred: only network paths pay the import
+
     public_id = _extract_id(url)
     try:
-        resp = requests.get(
-            _API_BASE + public_id,
-            headers={"User-Agent": _USER_AGENT, "Accept": "application/json"},
-            timeout=20,
-        )
+        resp = _http.get_session().get(_API_BASE + public_id, timeout=20)
     except (requests.ConnectionError, requests.Timeout) as e:
         raise errors.NetworkError(url, cause=type(e).__name__) from e
     except requests.RequestException as e:

@@ -16,16 +16,19 @@ import os
 import pytest
 
 from cod_sync import alt_name
+from cod_sync.sources import _http
 
 
 @pytest.fixture(autouse=True)
 def _isolate_alt_name(monkeypatch, tmp_path_factory):
     alt_name._reset_state_for_tests()
+    _http._reset_state_for_tests()
     cache_dir = tmp_path_factory.mktemp("cod_sync_cache")
     monkeypatch.setenv("COD_SYNC_NO_NETWORK", "1")
     monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(cache_dir))
     yield
     alt_name._reset_state_for_tests()
+    _http._reset_state_for_tests()
 
 
 def pytest_collection_modifyitems(config, items):

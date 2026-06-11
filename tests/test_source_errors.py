@@ -41,6 +41,20 @@ def _mock_response(
     return resp
 
 
+def _patch_http_get(monkeypatch, fn: Any) -> None:
+    """Route the fetchers' shared-session GET through `fn`.
+
+    The fetchers go through `sources._http.get_session().get(...)`, so the
+    seam to fake is the session object, not a module-level `requests.get`.
+    """
+
+    class _FakeSession:
+        def get(self, *a: Any, **kw: Any) -> Any:
+            return fn(*a, **kw)
+
+    monkeypatch.setattr("cod_sync.sources._http.get_session", lambda: _FakeSession())
+
+
 # ----- from_http_response ---------------------------------------------------
 
 
@@ -113,21 +127,20 @@ def test_moxfield_bad_url_raises_InvalidSourceError():
 
 
 def test_moxfield_404_raises_DeckNotFoundError(monkeypatch):
-    monkeypatch.setattr(moxfield.requests, "get", lambda *a, **kw: _mock_response(status=404))
+    _patch_http_get(monkeypatch, lambda *a, **kw: _mock_response(status=404))
     with pytest.raises(errors.DeckNotFoundError):
         moxfield.fetch(_MOX_URL)
 
 
 def test_moxfield_403_raises_DeckPrivateError(monkeypatch):
-    monkeypatch.setattr(moxfield.requests, "get", lambda *a, **kw: _mock_response(status=403))
+    _patch_http_get(monkeypatch, lambda *a, **kw: _mock_response(status=403))
     with pytest.raises(errors.DeckPrivateError):
         moxfield.fetch(_MOX_URL)
 
 
 def test_moxfield_429_raises_RateLimitedError_with_retry_after(monkeypatch):
-    monkeypatch.setattr(
-        moxfield.requests,
-        "get",
+    _patch_http_get(
+        monkeypatch,
         lambda *a, **kw: _mock_response(status=429, headers={"Retry-After": "30"}),
     )
     with pytest.raises(errors.RateLimitedError) as exc:
@@ -136,7 +149,7 @@ def test_moxfield_429_raises_RateLimitedError_with_retry_after(monkeypatch):
 
 
 def test_moxfield_500_raises_RemoteServerError(monkeypatch):
-    monkeypatch.setattr(moxfield.requests, "get", lambda *a, **kw: _mock_response(status=502))
+    _patch_http_get(monkeypatch, lambda *a, **kw: _mock_response(status=502))
     with pytest.raises(errors.RemoteServerError) as exc:
         moxfield.fetch(_MOX_URL)
     assert exc.value.status == 502
@@ -146,7 +159,7 @@ def test_moxfield_timeout_raises_NetworkError(monkeypatch):
     def boom(*a: Any, **kw: Any) -> Any:
         raise requests.Timeout("read timed out")
 
-    monkeypatch.setattr(moxfield.requests, "get", boom)
+    _patch_http_get(monkeypatch, boom)
     with pytest.raises(errors.NetworkError) as exc:
         moxfield.fetch(_MOX_URL)
     assert "Timeout" in exc.value.cause
@@ -156,7 +169,7 @@ def test_moxfield_connection_error_raises_NetworkError(monkeypatch):
     def boom(*a: Any, **kw: Any) -> Any:
         raise requests.ConnectionError("dns failure")
 
-    monkeypatch.setattr(moxfield.requests, "get", boom)
+    _patch_http_get(monkeypatch, boom)
     with pytest.raises(errors.NetworkError) as exc:
         moxfield.fetch(_MOX_URL)
     assert "ConnectionError" in exc.value.cause
@@ -164,7 +177,7 @@ def test_moxfield_connection_error_raises_NetworkError(monkeypatch):
 
 def test_moxfield_bad_json_raises_MalformedResponseError(monkeypatch):
     resp = _mock_response(status=200, raise_on_json=ValueError("not json"))
-    monkeypatch.setattr(moxfield.requests, "get", lambda *a, **kw: resp)
+    _patch_http_get(monkeypatch, lambda *a, **kw: resp)
     with pytest.raises(errors.MalformedResponseError):
         moxfield.fetch(_MOX_URL)
 
@@ -182,19 +195,19 @@ def test_archidekt_bad_url_raises_InvalidSourceError():
 
 
 def test_archidekt_404_raises_DeckNotFoundError(monkeypatch):
-    monkeypatch.setattr(archidekt.requests, "get", lambda *a, **kw: _mock_response(status=404))
+    _patch_http_get(monkeypatch, lambda *a, **kw: _mock_response(status=404))
     with pytest.raises(errors.DeckNotFoundError):
         archidekt.fetch(_ARCH_URL)
 
 
 def test_archidekt_429_raises_RateLimitedError(monkeypatch):
-    monkeypatch.setattr(archidekt.requests, "get", lambda *a, **kw: _mock_response(status=429))
+    _patch_http_get(monkeypatch, lambda *a, **kw: _mock_response(status=429))
     with pytest.raises(errors.RateLimitedError):
         archidekt.fetch(_ARCH_URL)
 
 
 def test_archidekt_503_raises_RemoteServerError(monkeypatch):
-    monkeypatch.setattr(archidekt.requests, "get", lambda *a, **kw: _mock_response(status=503))
+    _patch_http_get(monkeypatch, lambda *a, **kw: _mock_response(status=503))
     with pytest.raises(errors.RemoteServerError):
         archidekt.fetch(_ARCH_URL)
 
@@ -203,14 +216,14 @@ def test_archidekt_connection_error_raises_NetworkError(monkeypatch):
     def boom(*a: Any, **kw: Any) -> Any:
         raise requests.ConnectionError("refused")
 
-    monkeypatch.setattr(archidekt.requests, "get", boom)
+    _patch_http_get(monkeypatch, boom)
     with pytest.raises(errors.NetworkError):
         archidekt.fetch(_ARCH_URL)
 
 
 def test_archidekt_bad_json_raises_MalformedResponseError(monkeypatch):
     resp = _mock_response(status=200, raise_on_json=ValueError("html error page"))
-    monkeypatch.setattr(archidekt.requests, "get", lambda *a, **kw: resp)
+    _patch_http_get(monkeypatch, lambda *a, **kw: resp)
     with pytest.raises(errors.MalformedResponseError):
         archidekt.fetch(_ARCH_URL)
 

@@ -12,13 +12,11 @@ from __future__ import annotations
 import re
 from typing import Any
 
-import requests
-
 from .. import dfc, errors
+from . import _http
 from .types import RemoteDeck
 
 _API_BASE = "https://archidekt.com/api/decks/"
-_USER_AGENT = "cod-sync/0.1 (+local CLI for personal use)"
 _DECK_ID_RE = re.compile(r"/decks/(\d+)")
 
 # Archidekt categories that map to Cockatrice's `side` zone. Cockatrice
@@ -28,13 +26,11 @@ _SIDE_CATEGORIES = {"sideboard", "commander", "companion"}
 
 
 def fetch(url: str) -> RemoteDeck:
+    import requests  # deferred: only network paths pay the import
+
     deck_id = _extract_id(url)
     try:
-        resp = requests.get(
-            f"{_API_BASE}{deck_id}/",
-            headers={"User-Agent": _USER_AGENT, "Accept": "application/json"},
-            timeout=20,
-        )
+        resp = _http.get_session().get(f"{_API_BASE}{deck_id}/", timeout=20)
     except (requests.ConnectionError, requests.Timeout) as e:
         raise errors.NetworkError(url, cause=type(e).__name__) from e
     except requests.RequestException as e:
