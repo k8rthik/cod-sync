@@ -2,9 +2,10 @@
 """Refresh the bundled reskin seed dict.
 
 Queries Scryfall for every printing with a distinct flavor name, applies
-the same DFC front-face reduction the source modules use, and writes the
-result to `cod_sync/_seed_data.py`. Commit the generated file before
-shipping a release.
+the same layout-aware name shaping the source modules use (front face for
+true DFCs, full "A // B" for split-style cards), and writes the result to
+`cod_sync/_seed_data.py`. Commit the generated file before shipping a
+release.
 
 Usage:
     python scripts/refresh_seed.py
@@ -25,7 +26,7 @@ import requests
 # Make `cod_sync` importable when running from a checkout.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from cod_sync.dfc import front_face  # noqa: E402
+from cod_sync.dfc import cockatrice_name  # noqa: E402
 
 _SEARCH = "https://api.scryfall.com/cards/search"
 _USER_AGENT = "cod-sync/seed-refresh (+https://github.com/k8rthik/cod-sync)"
@@ -68,8 +69,11 @@ def _fetch_all_reskins() -> dict[str, str]:
             if not isinstance(canonical_raw, str) or not isinstance(flavor_raw, str):
                 continue
 
-            flavor = front_face(flavor_raw)
-            canonical = front_face(canonical_raw)
+            # Shape both sides with the card's layout so split-style
+            # canonicals (Rooms, aftermath) keep their full "A // B" name.
+            layout = card.get("layout") if isinstance(card.get("layout"), str) else None
+            flavor = cockatrice_name(flavor_raw, layout)
+            canonical = cockatrice_name(canonical_raw, layout)
             if not flavor or not canonical or flavor == canonical:
                 continue
 

@@ -42,39 +42,50 @@ def test_changes_sorted_case_insensitive():
     assert names == ["Apple", "banana", "cherry"]
 
 
-def test_dfc_matches_front_only_local_name():
-    """Remote returns 'Front // Back'; local has just 'Front'. No diff."""
-    deck = _deck({"Bala Ged Recovery": 1})
-    remote = {"main": {"Bala Ged Recovery // Bala Ged Sanctuary": 1}, "side": {}}
-    assert diff.compute(deck, remote) == []
-
-
-def test_dfc_full_form_match_when_local_has_full_form():
-    """Both sides use the full form: still no diff."""
+def test_full_form_match_when_local_has_full_form():
+    """Split-style cards (Rooms, aftermath) use the full name on both sides:
+    no diff."""
     deck = _deck({"Dusk // Dawn": 1})
     remote = {"main": {"Dusk // Dawn": 1}, "side": {}}
     assert diff.compute(deck, remote) == []
 
 
-def test_dfc_quantity_change_works_with_short_local_name():
-    deck = _deck({"Bala Ged Recovery": 1})
-    remote = {"main": {"Bala Ged Recovery // Bala Ged Sanctuary": 2}, "side": {}}
+def test_full_form_quantity_change_when_local_has_full_form():
+    deck = _deck({"Bottomless Pool // Locker Room": 1})
+    remote = {"main": {"Bottomless Pool // Locker Room": 2}, "side": {}}
     changes = diff.compute(deck, remote)
     assert len(changes) == 1
     assert changes[0].kind == "qty"
-    assert changes[0].name == "Bala Ged Recovery"
+    assert changes[0].name == "Bottomless Pool // Locker Room"
     assert changes[0].remote_qty == 2
 
 
-def test_dfc_new_card_uses_front_face_only():
-    """A brand-new DFC is added under the front face name so Cockatrice's card
-    database can find it. The "// Back" portion is stripped on add."""
+def test_new_full_form_card_is_added_verbatim():
+    """Remote names arrive already Cockatrice-shaped (the source and
+    alt_name layers are layout-aware), so a full "A // B" name is a
+    split-style card and must be added under the full name — not reduced
+    to the front half."""
     deck = _deck({})
-    remote = {"main": {"Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 1}, "side": {}}
+    remote = {"main": {"Bottomless Pool // Locker Room": 1}, "side": {}}
     changes = diff.compute(deck, remote)
     assert len(changes) == 1
     assert changes[0].kind == "add"
-    assert changes[0].name == "Fable of the Mirror-Breaker"
+    assert changes[0].name == "Bottomless Pool // Locker Room"
+
+
+def test_room_local_front_half_is_healed_to_full_form():
+    """Local stores a stale front-half Room entry (written before the
+    layout-aware fix); remote sends the correct full form. The diff must
+    surface a remove + add pair so the file heals on the next sync."""
+    deck = _deck({"Bottomless Pool": 1})
+    remote = {"main": {"Bottomless Pool // Locker Room": 1}, "side": {}}
+    changes = diff.compute(deck, remote)
+    assert len(changes) == 2
+    by_kind = {(c.kind, c.name): c for c in changes}
+    remove = by_kind[("remove", "Bottomless Pool")]
+    add = by_kind[("add", "Bottomless Pool // Locker Room")]
+    assert remove.local_qty == 1
+    assert add.remote_qty == 1
 
 
 def test_dfc_local_full_form_is_healed_to_remote_front_face():

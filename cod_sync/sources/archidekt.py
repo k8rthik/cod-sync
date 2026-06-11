@@ -103,7 +103,7 @@ def _parse(data: dict[str, Any]) -> dict[str, dict[str, int]]:
         name = _card_name(entry)
         if not name:
             continue
-        name = dfc.front_face(name)
+        name = dfc.cockatrice_name(name, _card_layout(entry))
         zone = "side" if any(c in side_categories for c in categories) else "main"
         out[zone][name] = out[zone].get(name, 0) + qty
     return out
@@ -113,3 +113,10 @@ def _card_name(entry: dict[str, Any]) -> str | None:
     card = entry.get("card") or {}
     oracle = card.get("oracleCard") or {}
     return oracle.get("name") or card.get("displayName")
+
+
+def _card_layout(entry: dict[str, Any]) -> str | None:
+    card = entry.get("card") or {}
+    oracle = card.get("oracleCard") or {}
+    layout = oracle.get("layout")
+    return layout if isinstance(layout, str) else None

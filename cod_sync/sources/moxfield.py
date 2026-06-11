@@ -113,5 +113,5 @@ def _add(zone: dict[str, int], entry: dict[str, Any]) -> None:
     name = card.get("name")
     if not name:
         return
-    name = dfc.front_face(name)
+    name = dfc.cockatrice_name(name, card.get("layout"))
     zone[name] = zone.get(name, 0) + qty

@@ -16,8 +16,17 @@ flavor name to the canonical name through three layers:
 
 Identity results (the card is not a reskin) are cached on disk too, so
 every distinct card name is queried at most once across the user's whole
-history. Network errors and 4xx/5xx responses silently fall back to
-identity. Set `COD_SYNC_NO_NETWORK=1` to skip step 3 entirely.
+history — but only definitive answers are cached: a name Scryfall reports
+as not-found is cached as identity, while a transport failure (timeout,
+5xx) falls back to identity for the current run without caching, so one
+network blip can't permanently mask a reskin. Set `COD_SYNC_NO_NETWORK=1`
+to skip step 3 entirely.
+
+Name shaping: Scryfall canonicals are shaped to Cockatrice's database
+form using the card's `layout` (`dfc.cockatrice_name`) — transform/modal
+DFCs reduce to the front face, split-style cards (split, aftermath,
+Rooms) keep the full "A // B" name. Cached and seed values are stored
+already shaped and trusted verbatim at read time.
 
 Performance: the disk cache is read once per process, the seed is never
 copied on the hot path, and the HTTP session is reused across batches.
@@ -43,11 +52,14 @@ import sys
 import threading
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
-
-import requests
+from typing import TYPE_CHECKING, Any
 
 from . import _seed_data, dfc
+
+if TYPE_CHECKING:
+    # `requests` costs ~75ms to import; it's deferred to first network use
+    # so CLI invocations that never hit Scryfall don't pay for it.
+    import requests
 
 _API_COLLECTION = "https://api.scryfall.com/cards/collection"
 _USER_AGENT = "cod-sync/0.7 (+https://github.com/k8rthik/cod-sync)"
@@ -99,10 +111,7 @@ def canonicalize_batch(names: Iterable[str]) -> dict[str, str]:
     O(1) per card. Unknown names hit Scryfall in chunks of 75 over a
     reused HTTP session.
     """
-    distinct: set[str] = set()
-    for n in names:
-        if n:
-            distinct.add(n)
+    distinct = {n for n in names if n}
     if not distinct:
         return {}
 
@@ -113,11 +122,12 @@ def canonicalize_batch(names: Iterable[str]) -> dict[str, str]:
 
     for n in distinct:
         # Disk wins over seed so users can override entries locally.
+        # Values are stored already Cockatrice-shaped; trust them verbatim.
         v = disk.get(n)
         if v is None:
             v = seed.get(n)
         if v is not None:
-            out[n] = dfc.front_face(v)
+            out[n] = v
         else:
             if unknown is None:
                 unknown = []
@@ -131,15 +141,43 @@ def canonicalize_batch(names: Iterable[str]) -> dict[str, str]:
             out[n] = n
         return out
 
-    resolved = _scryfall_batch_lookup(unknown)  # network — lock not held
+    resolved, not_found = _scryfall_batch_lookup(unknown)  # network — lock not held
+
+    # Scryfall's collection endpoint doesn't match full "A // B" names —
+    # they come back not_found even for real cards. Retry those by front
+    # half: the half resolves the card and its layout, so the shaped
+    # canonical is right whether the card is a true DFC (→ front face)
+    # or split-style (→ the full name back).
+    retry = [n for n in not_found if " // " in n]
+    if retry:
+        half_to_full = {dfc.front_face(n): n for n in retry}
+        re_resolved, _ = _scryfall_batch_lookup(list(half_to_full))
+        for half, full in half_to_full.items():
+            canonical = re_resolved.get(half)
+            if canonical is not None:
+                resolved[full] = canonical
+                not_found.discard(full)
+
+    learned = False
     with _state_lock:
         for n in unknown:
-            # Scryfall returns DFC canonicals as "Front // Back"; Cockatrice
-            # only recognizes the front face, so strip before caching.
-            canonical = dfc.front_face(resolved.get(n, n))
-            out[n] = canonical
-            disk[n] = canonical  # in-memory cache wins for the rest of the process
-        _save_disk_cache(disk)
+            canonical = resolved.get(n)
+            if canonical is not None:
+                # Already shaped by layout in `_absorb_response`.
+                out[n] = canonical
+                disk[n] = canonical  # in-memory cache wins for the rest of the process
+                learned = True
+            elif n in not_found:
+                # Definitive miss: cache identity so we never re-query it.
+                out[n] = n
+                disk[n] = n
+                learned = True
+            else:
+                # Transport failure: identity for this run only — caching it
+                # would let one network blip permanently mask a reskin.
+                out[n] = n
+        if learned:
+            _save_disk_cache(disk)
     return out
 
 
@@ -147,22 +185,14 @@ def canonicalize(name: str) -> str:
     """Single-name convenience wrapper around `canonicalize_batch`."""
     if not name:
         return name
-    # Fast path: seed-only lookup avoids the iterator/set construction.
+    # Fast path: seed/disk lookup avoids the batch's set construction.
     disk = _get_disk_cache()
     v = disk.get(name)
+    if v is None:
+        v = _SEED.get(name)
     if v is not None:
-        return dfc.front_face(v)
-    v = _SEED.get(name)
-    if v is not None:
-        return dfc.front_face(v)
-    if _network_disabled():
-        return name
-    resolved = _scryfall_batch_lookup([name])  # network — lock not held
-    canonical = dfc.front_face(resolved.get(name, name))
-    with _state_lock:
-        disk[name] = canonical
-        _save_disk_cache(disk)
-    return canonical
+        return v
+    return canonicalize_batch([name]).get(name, name)
 
 
 # ----- env + cache helpers -------------------------------------------------
@@ -238,6 +268,8 @@ def _get_session() -> requests.Session:
     global _session
     with _state_lock:
         if _session is None:
+            import requests  # deferred: only network paths pay the import
+
             s = requests.Session()
             s.headers.update(
                 {
@@ -250,14 +282,19 @@ def _get_session() -> requests.Session:
         return _session
 
 
-def _scryfall_batch_lookup(names: list[str]) -> dict[str, str]:
+def _scryfall_batch_lookup(names: list[str]) -> tuple[dict[str, str], set[str]]:
     """Resolve unknown names via Scryfall's `/cards/collection` endpoint.
 
-    Returns `{input_name: canonical_name}` for names that resolved. Missing
-    keys mean the lookup failed (404, timeout, parse error); callers treat
-    those as identity.
+    Returns `(resolved, not_found)`: `resolved` maps input names to their
+    Cockatrice-shaped canonical names; `not_found` holds names Scryfall
+    definitively reported as unknown. A name in neither means its request
+    failed in transit (timeout, 5xx, parse error) — callers fall back to
+    identity for the run without caching the answer.
     """
+    import requests  # deferred: only network paths pay the import
+
     resolved: dict[str, str] = {}
+    not_found: set[str] = set()
     session = _get_session()
     for i in range(0, len(names), _BATCH_SIZE):
         chunk = names[i : i + _BATCH_SIZE]
@@ -271,16 +308,21 @@ def _scryfall_batch_lookup(names: list[str]) -> dict[str, str]:
             data = resp.json()
         except (requests.RequestException, ValueError):
             continue
-        _absorb_response(chunk, data, resolved)
-    return resolved
+        _absorb_response(chunk, data, resolved, not_found)
+    return resolved, not_found
 
 
-def _absorb_response(chunk: list[str], data: dict[str, Any], resolved: dict[str, str]) -> None:
+def _absorb_response(
+    chunk: list[str], data: dict[str, Any], resolved: dict[str, str], not_found: set[str]
+) -> None:
     """Match Scryfall response items back to input query names.
 
     Scryfall preserves request order in `data` and lists unresolved
     identifiers in `not_found`. Walk `chunk` skipping `not_found` names,
-    then zip the survivors against `data` in order.
+    then zip the survivors against `data` in order. Canonical names are
+    shaped to Cockatrice's form using each card's `layout`, so split-style
+    cards (Rooms, aftermath) keep their full "A // B" name while true DFCs
+    reduce to the front face.
     """
     not_found_names: set[str] = set()
     for ident in data.get("not_found") or []:
@@ -288,6 +330,7 @@ def _absorb_response(chunk: list[str], data: dict[str, Any], resolved: dict[str,
             n = ident.get("name")
             if isinstance(n, str):
                 not_found_names.add(n)
+    not_found.update(not_found_names)
 
     data_items = data.get("data") or []
     di = 0
@@ -301,4 +344,7 @@ def _absorb_response(chunk: list[str], data: dict[str, Any], resolved: dict[str,
         if isinstance(item, dict):
             canonical = item.get("name")
             if isinstance(canonical, str):
-                resolved[query] = canonical
+                layout = item.get("layout")
+                resolved[query] = dfc.cockatrice_name(
+                    canonical, layout if isinstance(layout, str) else None
+                )

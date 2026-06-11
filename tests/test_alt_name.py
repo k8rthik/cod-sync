@@ -138,7 +138,7 @@ def test_scryfall_resolves_new_reskin(tmp_path, monkeypatch):
 
     def fake_lookup(names):
         assert names == ["Brand New Reskin"]
-        return {"Brand New Reskin": "Older Card"}
+        return {"Brand New Reskin": "Older Card"}, set()
 
     monkeypatch.setattr("cod_sync.alt_name._scryfall_batch_lookup", fake_lookup)
 
@@ -149,62 +149,145 @@ def test_scryfall_resolves_new_reskin(tmp_path, monkeypatch):
     assert cached == {"Brand New Reskin": "Older Card"}
 
 
-def test_scryfall_dfc_canonical_is_stripped_to_front_face(tmp_path, monkeypatch):
-    """Scryfall returns DFC canonicals as "Front // Back"; Cockatrice's card
-    database keys on the front face only, so the alt_name layer must strip
-    the back face before the name reaches the .cod or the disk cache."""
+def test_scryfall_room_canonical_is_kept_and_cached_full(tmp_path, monkeypatch):
+    """Room/split canonicals come back from the lookup layer in full "A // B"
+    form (shaped by layout in `_absorb_response`); the batch layer must pass
+    them through and cache them verbatim — no blind front-face strip."""
     _allow_network(monkeypatch)
     monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
 
     monkeypatch.setattr(
         "cod_sync.alt_name._scryfall_batch_lookup",
-        lambda _n: {"Dowsing Dagger": "Dowsing Dagger // Lost Vale of Pahz"},
+        lambda _n: ({"Bottomless Pool": "Bottomless Pool // Locker Room"}, set()),
     )
 
-    out = alt_name.canonicalize_batch(["Dowsing Dagger"])
-    assert out == {"Dowsing Dagger": "Dowsing Dagger"}
+    out = alt_name.canonicalize_batch(["Bottomless Pool"])
+    assert out == {"Bottomless Pool": "Bottomless Pool // Locker Room"}
 
     cached = json.loads((tmp_path / "cod-sync" / "alt_names.json").read_text())
-    assert cached == {"Dowsing Dagger": "Dowsing Dagger"}
+    assert cached == {"Bottomless Pool": "Bottomless Pool // Locker Room"}
 
 
-def test_canonicalize_single_strips_dfc_back_face(tmp_path, monkeypatch):
+def test_canonicalize_single_passes_through_shaped_names(tmp_path, monkeypatch):
     """Same guarantee for the single-name path."""
     _allow_network(monkeypatch)
     monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
     monkeypatch.setattr(
         "cod_sync.alt_name._scryfall_batch_lookup",
-        lambda _n: {"Dowsing Dagger": "Dowsing Dagger // Lost Vale of Pahz"},
+        lambda _n: ({"Bottomless Pool": "Bottomless Pool // Locker Room"}, set()),
     )
 
-    assert alt_name.canonicalize("Dowsing Dagger") == "Dowsing Dagger"
+    assert alt_name.canonicalize("Bottomless Pool") == "Bottomless Pool // Locker Room"
 
 
-def test_stale_disk_cache_with_dfc_full_form_is_sanitized(tmp_path, monkeypatch):
-    """Users who picked up bad "Front // Back" entries before the fix get
-    healed on the next sync — output is stripped even if the cache is dirty."""
+def test_disk_cache_full_form_value_is_trusted_verbatim(tmp_path, monkeypatch):
+    """Cache values are written already shaped, so reads trust them as-is.
+    This is what lets a local override map a name to a Room/split canonical."""
     cache_path = tmp_path / "cod-sync" / "alt_names.json"
     cache_path.parent.mkdir(parents=True)
-    cache_path.write_text(json.dumps({"Dowsing Dagger": "Dowsing Dagger // Lost Vale of Pahz"}))
+    cache_path.write_text(json.dumps({"Bottomless Pool": "Bottomless Pool // Locker Room"}))
     monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
 
-    out = alt_name.canonicalize_batch(["Dowsing Dagger"])
-    assert out == {"Dowsing Dagger": "Dowsing Dagger"}
+    out = alt_name.canonicalize_batch(["Bottomless Pool"])
+    assert out == {"Bottomless Pool": "Bottomless Pool // Locker Room"}
 
 
-def test_scryfall_404_caches_identity(tmp_path, monkeypatch):
-    """Even when Scryfall returns nothing, cache the identity so we don't
+def test_scryfall_not_found_caches_identity(tmp_path, monkeypatch):
+    """A definitive Scryfall not-found caches the identity so we don't
     re-query the same unknown card on every sync."""
     _allow_network(monkeypatch)
     monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
 
-    monkeypatch.setattr("cod_sync.alt_name._scryfall_batch_lookup", lambda _n: {})
+    monkeypatch.setattr(
+        "cod_sync.alt_name._scryfall_batch_lookup", lambda _n: ({}, {"Garbage Name"})
+    )
 
     out = alt_name.canonicalize_batch(["Garbage Name"])
     assert out == {"Garbage Name": "Garbage Name"}
 
     cached = json.loads((tmp_path / "cod-sync" / "alt_names.json").read_text())
     assert cached == {"Garbage Name": "Garbage Name"}
+
+
+def test_transient_failure_is_not_cached(tmp_path, monkeypatch):
+    """A name missing from both `resolved` and `not_found` means the request
+    itself failed (timeout, 5xx). Fall back to identity for this run but do
+    NOT cache it — caching would permanently mask a reskin behind one blip."""
+    _allow_network(monkeypatch)
+    monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
+
+    calls = [0]
+
+    def fake_lookup(names):
+        calls[0] += 1
+        return {}, set()  # transport failure: nothing resolved, nothing definitive
+
+    monkeypatch.setattr("cod_sync.alt_name._scryfall_batch_lookup", fake_lookup)
+
+    out = alt_name.canonicalize_batch(["Flaky Card"])
+    assert out == {"Flaky Card": "Flaky Card"}
+    assert not (tmp_path / "cod-sync" / "alt_names.json").exists()
+
+    # Next run retries instead of trusting a poisoned identity entry.
+    alt_name.canonicalize_batch(["Flaky Card"])
+    assert calls[0] == 2
+
+
+def test_full_form_not_found_retries_by_front_half(tmp_path, monkeypatch):
+    """Scryfall's collection endpoint doesn't match full "A // B" names —
+    they come back not_found. The batch layer retries those by front half,
+    which resolves the card and its layout, so the shaped canonical comes
+    back regardless of which form the caller passed in."""
+    _allow_network(monkeypatch)
+    monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
+
+    lookups: list[list[str]] = []
+
+    def fake_lookup(names):
+        lookups.append(sorted(names))
+        if any(" // " in n for n in names):
+            # First pass: full forms are never matched by the endpoint.
+            return {}, set(names)
+        # Retry pass: half-names resolve, shaped by layout.
+        out = {}
+        if "Storm the Vault" in names:
+            out["Storm the Vault"] = "Storm the Vault"  # transform → front face
+        if "Bottomless Pool" in names:
+            out["Bottomless Pool"] = "Bottomless Pool // Locker Room"  # split → full
+        return out, set(names) - set(out)
+
+    monkeypatch.setattr("cod_sync.alt_name._scryfall_batch_lookup", fake_lookup)
+
+    out = alt_name.canonicalize_batch(
+        ["Storm the Vault // Vault of Catlacan", "Bottomless Pool // Locker Room"]
+    )
+    assert out == {
+        "Storm the Vault // Vault of Catlacan": "Storm the Vault",
+        "Bottomless Pool // Locker Room": "Bottomless Pool // Locker Room",
+    }
+    assert len(lookups) == 2
+    assert lookups[1] == ["Bottomless Pool", "Storm the Vault"]
+
+    cached = json.loads((tmp_path / "cod-sync" / "alt_names.json").read_text())
+    assert cached == {
+        "Storm the Vault // Vault of Catlacan": "Storm the Vault",
+        "Bottomless Pool // Locker Room": "Bottomless Pool // Locker Room",
+    }
+
+
+def test_full_form_unknown_on_both_passes_caches_identity(tmp_path, monkeypatch):
+    """A full-form name whose front half is also unknown is a definitive
+    miss: identity, cached."""
+    _allow_network(monkeypatch)
+    monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
+
+    monkeypatch.setattr("cod_sync.alt_name._scryfall_batch_lookup", lambda names: ({}, set(names)))
+
+    out = alt_name.canonicalize_batch(["Made Up // Card"])
+    assert out == {"Made Up // Card": "Made Up // Card"}
+
+    cached = json.loads((tmp_path / "cod-sync" / "alt_names.json").read_text())
+    assert cached == {"Made Up // Card": "Made Up // Card"}
 
 
 def test_seed_short_circuits_scryfall(tmp_path, monkeypatch):
@@ -215,7 +298,7 @@ def test_seed_short_circuits_scryfall(tmp_path, monkeypatch):
     called = []
     monkeypatch.setattr(
         "cod_sync.alt_name._scryfall_batch_lookup",
-        lambda names: called.append(names) or {},
+        lambda names: called.append(names) or ({}, set()),
     )
 
     out = alt_name.canonicalize_batch(["Unstable Harmonics"])
@@ -231,7 +314,7 @@ def test_scryfall_mixed_seed_and_unknown(tmp_path, monkeypatch):
 
     def fake_lookup(names):
         assert set(names) == {"Mystery", "Counterspell"}
-        return {"Mystery": "Real Mystery"}
+        return {"Mystery": "Real Mystery"}, {"Counterspell"}
 
     monkeypatch.setattr("cod_sync.alt_name._scryfall_batch_lookup", fake_lookup)
 
@@ -255,7 +338,7 @@ def test_second_sync_hits_cache_not_scryfall(tmp_path, monkeypatch):
 
     def fake_lookup(names):
         call_count[0] += 1
-        return {n: n for n in names}
+        return {n: n for n in names}, set()
 
     monkeypatch.setattr("cod_sync.alt_name._scryfall_batch_lookup", fake_lookup)
 
@@ -280,7 +363,7 @@ def test_concurrent_canonicalize_is_thread_safe(tmp_path, monkeypatch):
 
     def fake_lookup(names):
         time.sleep(0.001)  # widen the miss -> mutate+save race window
-        return {n: n.replace("Skin", "Canon") for n in names}
+        return {n: n.replace("Skin", "Canon") for n in names}, set()
 
     monkeypatch.setattr("cod_sync.alt_name._scryfall_batch_lookup", fake_lookup)
 
@@ -340,6 +423,7 @@ def test_disk_cache_lazy_init_is_single_object(tmp_path, monkeypatch):
 
 def test_absorb_response_matches_in_order():
     resolved: dict[str, str] = {}
+    not_found: set[str] = set()
     chunk = ["A flavor", "B normal", "C bogus", "D normal"]
     data = {
         "data": [
@@ -349,18 +433,52 @@ def test_absorb_response_matches_in_order():
         ],
         "not_found": [{"name": "C bogus"}],
     }
-    alt_name._absorb_response(chunk, data, resolved)
+    alt_name._absorb_response(chunk, data, resolved, not_found)
     assert resolved == {
         "A flavor": "A canonical",
         "B normal": "B normal",
         "D normal": "D normal",
     }
+    assert not_found == {"C bogus"}
 
 
 def test_absorb_response_handles_empty_response():
     resolved: dict[str, str] = {}
-    alt_name._absorb_response(["A"], {}, resolved)
+    not_found: set[str] = set()
+    alt_name._absorb_response(["A"], {}, resolved, not_found)
     assert resolved == {}
+    assert not_found == set()
+
+
+def test_absorb_response_shapes_by_layout():
+    """Scryfall card objects carry `layout`; the canonical name is shaped
+    with it — transform/modal DFCs reduce to the front face, split-style
+    cards (Rooms, aftermath) keep the full name."""
+    resolved: dict[str, str] = {}
+    not_found: set[str] = set()
+    chunk = ["Dowsing Dagger", "Bottomless Pool", "Dusk"]
+    data = {
+        "data": [
+            {"name": "Dowsing Dagger // Lost Vale of Pahz", "layout": "transform"},
+            {"name": "Bottomless Pool // Locker Room", "layout": "split"},
+            {"name": "Dusk // Dawn", "layout": "aftermath"},
+        ],
+    }
+    alt_name._absorb_response(chunk, data, resolved, not_found)
+    assert resolved == {
+        "Dowsing Dagger": "Dowsing Dagger",
+        "Bottomless Pool": "Bottomless Pool // Locker Room",
+        "Dusk": "Dusk // Dawn",
+    }
+
+
+def test_absorb_response_missing_layout_strips_to_front_face():
+    """No layout field → fall back to the historical DFC strip."""
+    resolved: dict[str, str] = {}
+    not_found: set[str] = set()
+    data = {"data": [{"name": "Dowsing Dagger // Lost Vale of Pahz"}]}
+    alt_name._absorb_response(["Dowsing Dagger"], data, resolved, not_found)
+    assert resolved == {"Dowsing Dagger": "Dowsing Dagger"}
 
 
 # ----- direct Scryfall HTTP layer (mocked) ---------------------------------
@@ -374,7 +492,7 @@ def test_scryfall_lookup_swallows_network_error(monkeypatch):
             raise requests.ConnectionError("offline")
 
     monkeypatch.setattr("cod_sync.alt_name._get_session", lambda: BoomSession())
-    assert alt_name._scryfall_batch_lookup(["X"]) == {}
+    assert alt_name._scryfall_batch_lookup(["X"]) == ({}, set())
 
 
 def test_scryfall_lookup_handles_bad_json(monkeypatch):
@@ -390,4 +508,4 @@ def test_scryfall_lookup_handles_bad_json(monkeypatch):
             return FakeResp()
 
     monkeypatch.setattr("cod_sync.alt_name._get_session", lambda: FakeSession())
-    assert alt_name._scryfall_batch_lookup(["X"]) == {}
+    assert alt_name._scryfall_batch_lookup(["X"]) == ({}, set())

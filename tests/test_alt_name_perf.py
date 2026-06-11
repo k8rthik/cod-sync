@@ -53,19 +53,23 @@ def test_session_reused_across_scryfall_batches(monkeypatch, tmp_path):
     monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
     monkeypatch.delenv("COD_SYNC_NO_NETWORK", raising=False)
 
+    import requests
+
     session_constructions = [0]
-    real_session_ctor = alt_name.requests.Session
+    real_session_ctor = requests.Session
 
     def counting_session(*a, **k):
         session_constructions[0] += 1
         return real_session_ctor(*a, **k)
 
-    monkeypatch.setattr("cod_sync.alt_name.requests.Session", counting_session)
+    # `requests` is imported lazily inside `_get_session`; patching the real
+    # module's Session is what that deferred import resolves to.
+    monkeypatch.setattr(requests, "Session", counting_session)
     # Replace lookup at the very end of the network path so we don't actually
     # hit Scryfall but the session is still constructed.
     monkeypatch.setattr(
         "cod_sync.alt_name._scryfall_batch_lookup",
-        lambda names: {n: n for n in names},
+        lambda names: ({n: n for n in names}, set()),
     )
     # Force at least one Scryfall call so _get_session would be invoked.
     # Since _scryfall_batch_lookup is mocked, _get_session is never called.
@@ -90,7 +94,7 @@ def test_repeated_unknown_only_hits_scryfall_once(monkeypatch, tmp_path):
 
     def fake_lookup(names):
         calls[0] += 1
-        return {n: n for n in names}
+        return {n: n for n in names}, set()
 
     monkeypatch.setattr("cod_sync.alt_name._scryfall_batch_lookup", fake_lookup)
 
@@ -212,7 +216,8 @@ def test_cache_write_is_single_per_batch(monkeypatch, tmp_path):
     monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
 
     monkeypatch.setattr(
-        "cod_sync.alt_name._scryfall_batch_lookup", lambda names: {n: n for n in names}
+        "cod_sync.alt_name._scryfall_batch_lookup",
+        lambda names: ({n: n for n in names}, set()),
     )
 
     writes = [0]

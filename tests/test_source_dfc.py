@@ -100,6 +100,105 @@ def test_archidekt_strips_dfc_in_sideboard_category():
     assert out["main"] == {}
 
 
+def test_moxfield_keeps_room_card_full_name():
+    """Rooms (Scryfall layout "split") are stored by Cockatrice under the
+    full "A // B" name — the fetcher must not reduce them to the front half."""
+    payload = {
+        "boards": {
+            "mainboard": {
+                "cards": {
+                    "id1": {
+                        "quantity": 1,
+                        "card": {
+                            "name": "Bottomless Pool // Locker Room",
+                            "layout": "split",
+                        },
+                    }
+                }
+            }
+        },
+    }
+    out = moxfield._parse(payload)
+    assert out["main"] == {"Bottomless Pool // Locker Room": 1}
+
+
+def test_moxfield_strips_transform_with_explicit_layout():
+    payload = {
+        "boards": {
+            "mainboard": {
+                "cards": {
+                    "id1": {
+                        "quantity": 1,
+                        "card": {
+                            "name": "Storm the Vault // Vault of Catlacan",
+                            "layout": "transform",
+                        },
+                    }
+                }
+            }
+        },
+    }
+    out = moxfield._parse(payload)
+    assert out["main"] == {"Storm the Vault": 1}
+
+
+def test_moxfield_keeps_aftermath_full_name():
+    payload = {
+        "boards": {
+            "mainboard": {
+                "cards": {
+                    "id1": {
+                        "quantity": 1,
+                        "card": {"name": "Dusk // Dawn", "layout": "aftermath"},
+                    }
+                }
+            }
+        },
+    }
+    out = moxfield._parse(payload)
+    assert out["main"] == {"Dusk // Dawn": 1}
+
+
+def test_archidekt_keeps_room_card_full_name():
+    payload = {
+        "categories": [],
+        "cards": [
+            {
+                "quantity": 1,
+                "categories": [],
+                "card": {
+                    "oracleCard": {
+                        "name": "Bottomless Pool // Locker Room",
+                        "layout": "split",
+                    }
+                },
+            }
+        ],
+    }
+    out = archidekt._parse(payload)
+    assert out["main"] == {"Bottomless Pool // Locker Room": 1}
+
+
+def test_archidekt_strips_transform_with_explicit_layout():
+    payload = {
+        "categories": [],
+        "cards": [
+            {
+                "quantity": 1,
+                "categories": [],
+                "card": {
+                    "oracleCard": {
+                        "name": "Storm the Vault // Vault of Catlacan",
+                        "layout": "transform",
+                    }
+                },
+            }
+        ],
+    }
+    out = archidekt._parse(payload)
+    assert out["main"] == {"Storm the Vault": 1}
+
+
 def test_text_parser_strips_dfc_back():
     src = """
 Deck

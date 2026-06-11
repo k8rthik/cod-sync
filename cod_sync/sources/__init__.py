@@ -8,6 +8,11 @@ Zone names match Cockatrice's ("main", "side").
 After the source-specific fetch, every card name is run through
 `alt_name.canonicalize_batch` so flavor-name reskins (Secret Lair etc.) are
 mapped to their Cockatrice-recognized canonical names in one batch lookup.
+
+Name shaping is layout-aware end to end: the fetchers shape multi-face
+names using each card's `layout` (front face for true DFCs, full "A // B"
+for split-style cards like Rooms), and the alt_name Scryfall fallback
+applies the same rule to anything it resolves.
 """
 
 from __future__ import annotations
@@ -47,20 +52,27 @@ def _fetch_raw(source: str) -> RemoteDeck:
 
 
 def _canonicalize(deck: RemoteDeck) -> RemoteDeck:
-    """Rewrite zone names through the alt-name map. Merges colliding entries."""
+    """Rewrite zone names through the alt-name map. Merges colliding entries.
+
+    Single pass over the zones: the rewritten copy is built while checking
+    for changes, and the original deck is returned untouched when every
+    name mapped to itself (the common case)."""
     all_names = {name for cards in deck.zones.values() for name in cards}
     if not all_names:
         return deck
     mapping = alt_name.canonicalize_batch(all_names)
-    if all(mapping.get(n, n) == n for n in all_names):
-        return deck
     new_zones: Zones = {}
+    dirty = False
     for zone, cards in deck.zones.items():
         merged: dict[str, int] = {}
         for original, qty in cards.items():
             canonical = mapping.get(original, original)
+            if canonical != original:
+                dirty = True
             merged[canonical] = merged.get(canonical, 0) + qty
         new_zones[zone] = merged
+    if not dirty:
+        return deck
     return RemoteDeck(name=deck.name, zones=new_zones, tags=deck.tags)
 
 
