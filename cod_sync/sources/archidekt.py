@@ -84,7 +84,6 @@ def _parse(data: dict[str, Any]) -> dict[str, dict[str, int]]:
     # and which (if any) should be treated as sideboard. Maybeboard is
     # represented by `includedInDeck: false` and must be ignored.
     excluded: set[str] = set()
-    side_categories = set(_SIDE_CATEGORIES)
     for cat in data.get("categories") or []:
         name = (cat.get("name") or "").strip()
         if not name:
@@ -97,14 +96,20 @@ def _parse(data: dict[str, Any]) -> dict[str, dict[str, int]]:
         qty = int(entry.get("quantity", 0))
         if qty <= 0:
             continue
-        categories = [c.lower() for c in (entry.get("categories") or [])]
-        if any(c in excluded for c in categories):
+        # A card's first category is its primary — the one that decides
+        # placement on Archidekt. The rest are organizational labels and
+        # must not re-zone or exclude (a user-made category that merely
+        # *resembles* "Sideboard" can appear as a secondary tag on
+        # mainboard cards).
+        categories = entry.get("categories") or []
+        primary = categories[0].lower() if categories else ""
+        if primary in excluded:
             continue
         name = _card_name(entry)
         if not name:
             continue
         name = dfc.cockatrice_name(name, _card_layout(entry))
-        zone = "side" if any(c in side_categories for c in categories) else "main"
+        zone = "side" if primary in _SIDE_CATEGORIES else "main"
         out[zone][name] = out[zone].get(name, 0) + qty
     return out
 

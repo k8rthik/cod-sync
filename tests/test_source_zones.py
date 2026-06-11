@@ -90,6 +90,56 @@ def test_archidekt_companion_category_routes_to_side():
     assert out["side"] == {"Lurrus of the Dream-Den": 1}
 
 
+def test_archidekt_secondary_category_does_not_re_zone():
+    """A card's first category is its primary — the one that determines
+    placement on Archidekt. Later entries are just labels: a card filed
+    under "Finisher" with a secondary sideboard-named tag is in the
+    mainboard on Archidekt and must stay in main here."""
+    payload = {
+        "categories": [
+            {"name": "Finisher", "includedInDeck": True},
+            {"name": "SIdeboard", "includedInDeck": True},
+        ],
+        "cards": [
+            {
+                "quantity": 1,
+                "categories": ["Finisher", "SIdeboard"],
+                "card": {"oracleCard": {"name": "Akroma's Memorial"}},
+            },
+        ],
+    }
+    out = archidekt._parse(payload)
+    assert out["main"] == {"Akroma's Memorial": 1}
+    assert out["side"] == {}
+
+
+def test_archidekt_exclusion_follows_primary_category_only():
+    """Maybeboard exclusion is also primary-only: a card whose primary
+    category is Maybeboard is out of the deck, but a card merely tagged
+    with Maybeboard as a secondary label is still in the deck."""
+    payload = {
+        "categories": [
+            {"name": "Maybeboard", "includedInDeck": False},
+            {"name": "Creature", "includedInDeck": True},
+        ],
+        "cards": [
+            {
+                "quantity": 1,
+                "categories": ["Maybeboard", "Creature"],
+                "card": {"oracleCard": {"name": "Gandalf the White"}},
+            },
+            {
+                "quantity": 1,
+                "categories": ["Creature", "Maybeboard"],
+                "card": {"oracleCard": {"name": "Llanowar Elves"}},
+            },
+        ],
+    }
+    out = archidekt._parse(payload)
+    assert out["main"] == {"Llanowar Elves": 1}
+    assert out["side"] == {}
+
+
 # ----- Text -----------------------------------------------------------------
 
 
