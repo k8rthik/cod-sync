@@ -155,6 +155,30 @@ def test_no_banner_is_noop(tmp_path, monkeypatch, capsys):
     assert cod.load(str(cod_path)).banner_card_name is None
 
 
+def test_banner_in_card_list_makes_no_alt_name_lookup(tmp_path, monkeypatch):
+    """When the banner already names a card in the deck (the common case),
+    the sync must not call alt_name at all — a cold-cache unknown banner
+    would otherwise pay a Scryfall round-trip per sync to learn nothing."""
+    cod_path = tmp_path / "deck.cod"
+    _write_deck(cod_path, banner="Sol Ring", main={"Sol Ring": 1})
+    monkeypatch.setattr(
+        "cod_sync.sources.fetch",
+        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="x"),
+    )
+    calls = [0]
+
+    def counting_canonicalize(name):
+        calls[0] += 1
+        return name
+
+    monkeypatch.setattr("cod_sync.alt_name.canonicalize", counting_canonicalize)
+
+    rc = cli.main([str(cod_path), "--yes"])
+
+    assert rc == 0
+    assert calls[0] == 0
+
+
 def test_banner_preserved_when_canonical_not_in_card_list(tmp_path, monkeypatch, capsys):
     """Banner has a reskin name but the canonical isn't in the deck
     either. Rewriting would create a fresh orphan. Leave the banner

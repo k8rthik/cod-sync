@@ -84,9 +84,12 @@ def _sync_deck(
             _state.say(f"{indent}{_DIM}Remote source is empty. Nothing to create.{_RESET}")
             return SyncOutcome("no_change", 0, False, False)
         if not yes:
+            # Sum quantities across all zones (main + side) — the prompt
+            # promises a card count, not a unique-entry count.
+            card_count = sum(c.remote_qty for c in changes)
             try:
                 ans = (
-                    input(f"{indent}Create {cod_path} with {len(changes)} card(s)? [Y/n] ")
+                    input(f"{indent}Create {cod_path} with {card_count} card(s)? [Y/n] ")
                     .strip()
                     .lower()
                 )
@@ -142,13 +145,17 @@ def _sync_deck(
     # got stranded when the card list was canonicalized; restoring the
     # link preserves the user's intent. Any other state (reskin still in
     # the deck, custom override, unknown name) leaves the banner alone.
+    # The card-set check runs first: when the banner already names a card
+    # in the deck (the common case) we skip the alt_name lookup entirely —
+    # a cold-cache unknown banner would otherwise cost a Scryfall round
+    # trip per sync just to learn nothing needs flipping.
     banner_changed = False
     if final_deck.banner_card_name:
         original = final_deck.banner_card_name
-        canonical = alt_name.canonicalize(original)
-        if canonical != original:
-            card_names = {c.name for z in final_deck.zones for c in z.cards}
-            if canonical in card_names and original not in card_names:
+        card_names = {c.name for z in final_deck.zones for c in z.cards}
+        if original not in card_names:
+            canonical = alt_name.canonicalize(original)
+            if canonical != original and canonical in card_names:
                 final_deck = replace(final_deck, banner_card_name=canonical)
                 banner_changed = True
 
@@ -219,7 +226,17 @@ def _sync_deck(
     )
 
 
-def _sync_file(cod_path: str, url: str | None, *, yes: bool, dry_run: bool) -> int:
+def _sync_file(
+    cod_path: str,
+    url: str | None,
+    *,
+    yes: bool,
+    dry_run: bool,
+    prefetched: sources.RemoteDeck | None = None,
+) -> int:
+    """Sync one deck file. ``prefetched`` carries an already-fetched remote
+    (the bare-URL flow needs the title before it knows the filename) so the
+    deck isn't downloaded twice."""
     exists = os.path.exists(cod_path)
 
     if exists:
@@ -242,14 +259,21 @@ def _sync_file(cod_path: str, url: str | None, *, yes: bool, dry_run: bool) -> i
             return 2
         _state.say(f"{_DIM}using stored URL: {url}{_RESET}")
 
-    try:
-        remote = sources.fetch(url)
-    except errors.SourceError as e:
-        print(_format_source_error(e), file=sys.stderr)
-        return 2
-    except Exception as e:
-        print(f"error: failed to fetch {url}: {e}", file=sys.stderr)
-        return 2
+    if prefetched is not None:
+        remote = prefetched
+    else:
+        # The remote API round-trip is the slow part of a sync (often
+        # seconds); say so up front instead of sitting silent until the
+        # diff appears.
+        _state.say(f"{_DIM}fetching {url} ...{_RESET}")
+        try:
+            remote = sources.fetch(url)
+        except errors.SourceError as e:
+            print(_format_source_error(e), file=sys.stderr)
+            return 2
+        except Exception as e:
+            print(f"error: failed to fetch {url}: {e}", file=sys.stderr)
+            return 2
 
     _sync_deck(
         deck,
@@ -266,6 +290,7 @@ def _sync_file(cod_path: str, url: str | None, *, yes: bool, dry_run: bool) -> i
 
 
 def _create_from_bare_url(url: str, *, yes: bool, dry_run: bool) -> int:
+    _state.say(f"{_DIM}fetching {url} ...{_RESET}")
     try:
         remote = sources.fetch(url)
     except errors.SourceError as e:
@@ -280,4 +305,4 @@ def _create_from_bare_url(url: str, *, yes: bool, dry_run: bool) -> int:
     if target.exists():
         _state.say(f"{_DIM}syncing existing {target}{_RESET}")
 
-    return _sync_file(str(target), url, yes=yes, dry_run=dry_run)
+    return _sync_file(str(target), url, yes=yes, dry_run=dry_run, prefetched=remote)

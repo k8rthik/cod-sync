@@ -113,6 +113,25 @@ def test_syncs_existing_target_against_url(tmp_path, monkeypatch, capsys):
     assert "already exists" not in err
 
 
+def test_bare_url_fetches_remote_exactly_once(tmp_path, monkeypatch):
+    """The bare-URL flow needs the remote twice (title for the filename,
+    zones for the sync) but must pay the network round-trip only once."""
+    monkeypatch.chdir(tmp_path)
+    calls = [0]
+
+    def counting_fetch(_src):
+        calls[0] += 1
+        return _remote({"main": {"Sol Ring": 1}, "side": {}}, name="One Fetch")
+
+    monkeypatch.setattr("cod_sync.sources.fetch", counting_fetch)
+
+    rc = _create_from_bare_url(URL, yes=True, dry_run=False)
+
+    assert rc == 0
+    assert (tmp_path / "one_fetch.cod").exists()
+    assert calls[0] == 1, f"remote fetched {calls[0]} times; the deck downloads twice"
+
+
 def test_fetch_failure_returns_error(tmp_path, monkeypatch, capsys):
     from cod_sync import errors
 

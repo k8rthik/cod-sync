@@ -6,6 +6,7 @@ it's a pure string-shaping helper with no better-fitting module.
 
 from __future__ import annotations
 
+import re
 import sys
 
 from cod_sync import cod, diff, errors, sourcetag
@@ -75,6 +76,9 @@ def _format_source_error(e: errors.SourceError) -> str:
     return f"error: failed to fetch {e.source}: {e}"
 
 
+_UNDERSCORE_RUN_RE = re.compile(r"_+")
+
+
 def _sanitize_filename(title: str) -> str:
     """Lowercase, whitespace → underscore, keep [a-z0-9_-], drop the rest."""
     out: list[str] = []
@@ -83,9 +87,7 @@ def _sanitize_filename(title: str) -> str:
             out.append("_")
         elif "a" <= ch <= "z" or "0" <= ch <= "9" or ch in "_-":
             out.append(ch)
-    s = "".join(out)
-    while "__" in s:
-        s = s.replace("__", "_")
+    s = _UNDERSCORE_RUN_RE.sub("_", "".join(out))
     return s.strip("_-")
 
 

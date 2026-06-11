@@ -26,6 +26,8 @@ _LINE_RE = re.compile(
 _SIDE_HEADERS = {"sideboard", "side", "sb", "commander", "commanders", "companion"}
 _MAIN_HEADERS = {"deck", "mainboard", "main"}
 
+_SB_PREFIX_RE = re.compile(r"^\s*SB:")
+
 
 def parse(text: str) -> dict[str, dict[str, int]]:
     out: dict[str, dict[str, int]] = {"main": {}, "side": {}}
@@ -44,7 +46,7 @@ def parse(text: str) -> dict[str, dict[str, int]]:
             continue
 
         # MTGO-style explicit sideboard prefix overrides current zone.
-        zone = "side" if re.match(r"^\s*SB:", raw) else current
+        zone = "side" if _SB_PREFIX_RE.match(raw) else current
 
         m = _LINE_RE.match(raw)
         if not m:

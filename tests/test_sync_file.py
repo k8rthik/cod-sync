@@ -148,6 +148,35 @@ def test_new_file_declined_prompt_does_not_write(tmp_path, monkeypatch):
     assert not cod_path.exists()
 
 
+def test_new_file_prompt_counts_cards_across_zones(tmp_path, monkeypatch):
+    """The create prompt reports the deck's card count: quantities summed
+    across main AND side — not the number of unique entries."""
+    monkeypatch.setattr(
+        "cod_sync.sources.fetch",
+        lambda _src: _remote(
+            {
+                "main": {"Lightning Bolt": 4, "Mountain": 20},
+                "side": {"Pyroblast": 2},
+            }
+        ),
+    )
+    prompts: list[str] = []
+
+    def fake_input(prompt="", *_a, **_k):
+        prompts.append(prompt)
+        return "y"
+
+    monkeypatch.setattr("builtins.input", fake_input)
+
+    cod_path = tmp_path / "counted.cod"
+    rc = _sync_file(str(cod_path), URL, yes=False, dry_run=False)
+
+    assert rc == 0
+    create_prompts = [p for p in prompts if "Create" in p]
+    assert len(create_prompts) == 1
+    assert "26 card(s)" in create_prompts[0]
+
+
 def test_new_file_dry_run_does_not_write(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.sources.fetch",

@@ -76,6 +76,7 @@ def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool
                 continue
             source = entered
 
+        _state.say(f"  {_DIM}fetching {source} ...{_RESET}")
         try:
             remote = sources.fetch(source)
         except errors.SourceError as e:
