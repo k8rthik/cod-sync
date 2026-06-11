@@ -33,7 +33,7 @@ def _print_summary(changes: list[diff.Change], indent: str = "") -> None:
     by_zone: dict[str, list[diff.Change]] = {}
     for c in changes:
         by_zone.setdefault(c.zone, []).append(c)
-    print(f"{indent}{_BOLD}{len(changes)} change(s):{_RESET}")
+    print(f"{indent}{_BOLD}{diff.total_card_delta(changes)} change(s):{_RESET}")
     for zone_name, items in by_zone.items():
         print(f"{indent}  {_DIM}[{zone_name}]{_RESET}")
         for c in items:

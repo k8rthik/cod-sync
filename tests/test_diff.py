@@ -25,6 +25,22 @@ def test_add_remove_and_qty():
     assert ("add" if False else "qty", "Sol Ring") not in kinds
 
 
+def test_total_card_delta_counts_cards_not_entries():
+    """A `+ 4x Forest` line is four cards, not one change. The summary
+    header promises a card count, so the helper must sum quantity deltas."""
+    changes = [
+        diff.Change("add", "main", "Forest", 0, 4),
+        diff.Change("add", "main", "Sol Ring", 0, 1),
+        diff.Change("remove", "main", "Gamble", 2, 0),
+        diff.Change("qty", "main", "Swamp", 1, 4),
+    ]
+    assert diff.total_card_delta(changes) == 4 + 1 + 2 + 3
+
+
+def test_total_card_delta_empty():
+    assert diff.total_card_delta([]) == 0
+
+
 def test_side_zone_changes_tracked_separately():
     deck = _deck({"Sol Ring": 1}, side={"Pithing Needle": 1})
     remote = {"main": {"Sol Ring": 1}, "side": {}}

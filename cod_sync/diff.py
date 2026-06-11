@@ -35,6 +35,15 @@ class Change:
         return f"~ {self.local_qty} → {self.remote_qty}x {self.name}"
 
 
+def total_card_delta(changes: list[Change]) -> int:
+    """Total number of cards touched — a `+ 4x Forest` line counts as 4.
+
+    User-facing counts (the summary header, the "Wrote N change(s)" line)
+    promise cards, not unique-name lines; quantity bumps count the delta.
+    """
+    return sum(abs(c.remote_qty - c.local_qty) for c in changes)
+
+
 def compute(deck: Deck, remote: dict[str, dict[str, int]]) -> list[Change]:
     """Return the ordered list of changes needed to make `deck` match `remote`."""
     changes: list[Change] = []

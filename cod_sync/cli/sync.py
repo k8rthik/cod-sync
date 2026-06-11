@@ -206,7 +206,7 @@ def _sync_deck(
 
     parts: list[str] = []
     if approved:
-        parts.append(f"{len(approved)} change(s)")
+        parts.append(f"{diff.total_card_delta(approved)} change(s)")
     if marker_changed:
         parts.append("source URL")
     if deckname_changed:
