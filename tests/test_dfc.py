@@ -35,8 +35,11 @@ def test_only_takes_the_first_face():
 #
 # Cockatrice keys true double-faced cards (transform / modal_dfc) by the
 # front face only, but keeps the full "A // B" name for cards whose halves
-# share one face: split cards, aftermath cards, and the Duskmourn "Room"
-# enchantments (Scryfall layout "split").
+# share one face: split cards, the Duskmourn "Room" enchantments (Scryfall
+# layout "split"), aftermath cards, adventures — including Tarkir omens,
+# which Scryfall also classifies as layout "adventure" — and prepare cards.
+# Verified against Cockatrice's own cards.xml: every adventure, aftermath,
+# split, and prepare entry uses the full name; no other layout does.
 
 
 def test_cockatrice_name_strips_transform():
@@ -69,8 +72,48 @@ def test_cockatrice_name_keeps_aftermath_full():
     assert dfc.cockatrice_name("Dusk // Dawn", "aftermath") == "Dusk // Dawn"
 
 
-def test_cockatrice_name_strips_adventure():
-    assert dfc.cockatrice_name("Brazen Borrower // Petty Theft", "adventure") == "Brazen Borrower"
+def test_cockatrice_name_keeps_adventure_full():
+    assert (
+        dfc.cockatrice_name("Brazen Borrower // Petty Theft", "adventure")
+        == "Brazen Borrower // Petty Theft"
+    )
+
+
+def test_cockatrice_name_keeps_omen_full():
+    # Omens are layout "adventure" on Scryfall; Cockatrice stores the full name.
+    assert (
+        dfc.cockatrice_name("Marang River Regent // Coil and Catch", "adventure")
+        == "Marang River Regent // Coil and Catch"
+    )
+    # Defensive alias in case a deck API ever reports the mechanic's own name.
+    assert (
+        dfc.cockatrice_name("Marang River Regent // Coil and Catch", "omen")
+        == "Marang River Regent // Coil and Catch"
+    )
+
+
+def test_cockatrice_name_keeps_prepare_full():
+    assert (
+        dfc.cockatrice_name("Studious First-Year // Rampant Growth", "prepare")
+        == "Studious First-Year // Rampant Growth"
+    )
+
+
+def test_cockatrice_name_keeps_room_alias_full():
+    # Rooms are layout "split" on Scryfall; "room" is a defensive alias.
+    assert (
+        dfc.cockatrice_name("Bottomless Pool // Locker Room", "room")
+        == "Bottomless Pool // Locker Room"
+    )
+
+
+def test_cockatrice_name_strips_flip():
+    # Kamigawa flip cards carry "A // B" names on Scryfall but Cockatrice
+    # keys them by the front face like true DFCs.
+    assert (
+        dfc.cockatrice_name("Bushi Tenderfoot // Kenzo the Hardhearted", "flip")
+        == "Bushi Tenderfoot"
+    )
 
 
 def test_cockatrice_name_unknown_layout_strips():

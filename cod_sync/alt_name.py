@@ -24,8 +24,9 @@ to skip step 3 entirely.
 
 Name shaping: Scryfall canonicals are shaped to Cockatrice's database
 form using the card's `layout` (`dfc.cockatrice_name`) — transform/modal
-DFCs reduce to the front face, split-style cards (split, aftermath,
-Rooms) keep the full "A // B" name. Cached and seed values are stored
+DFCs reduce to the front face; single-face multi-part cards (split,
+Rooms, aftermath, adventures/omens, prepare) keep the full "A // B"
+name. Cached and seed values are stored
 already shaped and trusted verbatim at read time.
 
 Performance: the disk cache is read once per process, the seed is never
@@ -321,7 +322,8 @@ def _absorb_response(
     identifiers in `not_found`. Walk `chunk` skipping `not_found` names,
     then zip the survivors against `data` in order. Canonical names are
     shaped to Cockatrice's form using each card's `layout`, so split-style
-    cards (Rooms, aftermath) keep their full "A // B" name while true DFCs
+    cards (split, Rooms, aftermath, adventures/omens, prepare) keep their
+    full "A // B" name while true DFCs
     reduce to the front face.
     """
     not_found_names: set[str] = set()

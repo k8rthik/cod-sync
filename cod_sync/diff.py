@@ -2,8 +2,9 @@
 
 Card names are compared verbatim. The source fetchers and the alt_name
 layer deliver remote names already in Cockatrice's database form (layout
-aware: front face for true DFCs, full "A // B" for split-style cards
-like Rooms and aftermath), so this layer must not second-guess them. A
+aware: front face for true DFCs, full "A // B" for single-face
+multi-part cards like Rooms, aftermath, and adventures), so this layer
+must not second-guess them. A
 shape mismatch against the local file — e.g. a stale front-half Room
 entry or a stale full-form DFC entry written before the layout fixes —
 surfaces as a remove + add pair, which heals the file on the next sync.

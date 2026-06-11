@@ -101,13 +101,31 @@ def _assert_precon_invariants(deck) -> None:
     missing = _EXPECTED_MAIN_ANCHORS - main.keys()
     assert not missing, f"mainboard missing expected anchor cards: {missing}"
 
-    # DFC normalization: nothing should round-trip as `Front // Back`.
-    # The Quandrix deck contains DFCs (Elusive Otter // Grove's Bounty,
-    # Striding Shotcaller // Run the Play, Yavimaya Bloomsage // Channel)
-    # so a regression in dfc.front_face would show up as a card name
-    # still containing " // ".
-    dfc_residue = [name for cards in deck.zones.values() for name in cards if " // " in name]
-    assert not dfc_residue, f"DFC names should be normalized to front face only, got: {dfc_residue}"
+    # Layout-aware shaping: the Quandrix deck contains an adventure card
+    # and two prepare cards, which Cockatrice stores under the full
+    # "A // B" name (the front-face-only entries don't exist in its
+    # database). A regression toward blanket front-face stripping would
+    # surface as these keys going missing.
+    full_name_cards = {
+        "Elusive Otter // Grove's Bounty",  # adventure
+        "Striding Shotcaller // Run the Play",  # prepare
+        "Yavimaya Bloomsage // Channel",  # prepare
+    }
+    missing_full = full_name_cards - main.keys()
+    assert not missing_full, (
+        f"adventure/prepare cards should keep their full names, missing: {missing_full}"
+    )
+
+    # And the inverse: no name outside the known full-name set should
+    # round-trip as "Front // Back" — a true DFC leaking its back face
+    # would show up here.
+    dfc_residue = [
+        name
+        for cards in deck.zones.values()
+        for name in cards
+        if " // " in name and name not in full_name_cards
+    ]
+    assert not dfc_residue, f"unexpected full-form names (DFC back-face leak?): {dfc_residue}"
 
 
 @pytest.mark.network

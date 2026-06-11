@@ -40,7 +40,7 @@ def test_moxfield_strips_dfc_in_sideboard_and_commanders():
                 "cards": {
                     "id1": {
                         "quantity": 1,
-                        "card": {"name": "Brazen Borrower // Petty Theft"},
+                        "card": {"name": "Delver of Secrets // Insectile Aberration"},
                     }
                 }
             },
@@ -58,7 +58,7 @@ def test_moxfield_strips_dfc_in_sideboard_and_commanders():
     # Commanders ride along in `side` with the literal sideboard so they
     # render with the commander pin in Cockatrice.
     assert out["side"] == {
-        "Brazen Borrower": 1,
+        "Delver of Secrets": 1,
         "Halana and Alena, Partners": 1,
     }
     assert out["main"] == {}
@@ -120,6 +120,48 @@ def test_moxfield_keeps_room_card_full_name():
     }
     out = moxfield._parse(payload)
     assert out["main"] == {"Bottomless Pool // Locker Room": 1}
+
+
+def test_moxfield_keeps_adventure_full_name():
+    """Adventures (and Tarkir omens, which share the layout) are stored by
+    Cockatrice under the full "A // B" name, same as split-style cards."""
+    payload = {
+        "boards": {
+            "mainboard": {
+                "cards": {
+                    "id1": {
+                        "quantity": 1,
+                        "card": {
+                            "name": "Brazen Borrower // Petty Theft",
+                            "layout": "adventure",
+                        },
+                    }
+                }
+            }
+        },
+    }
+    out = moxfield._parse(payload)
+    assert out["main"] == {"Brazen Borrower // Petty Theft": 1}
+
+
+def test_archidekt_keeps_prepare_full_name():
+    payload = {
+        "categories": [],
+        "cards": [
+            {
+                "quantity": 1,
+                "categories": [],
+                "card": {
+                    "oracleCard": {
+                        "name": "Studious First-Year // Rampant Growth",
+                        "layout": "prepare",
+                    }
+                },
+            }
+        ],
+    }
+    out = archidekt._parse(payload)
+    assert out["main"] == {"Studious First-Year // Rampant Growth": 1}
 
 
 def test_moxfield_strips_transform_with_explicit_layout():
