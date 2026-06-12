@@ -275,17 +275,6 @@ the primary-category change; this residual case needs a real deck that
 hits it before deciding whether exact-case matching is worth the
 strictness.
 
-### README says commanders land in `main`; the code routes them to `side`
-
-`README.md` ("A few things worth knowing") claims commanders and
-companions end up in the `main` zone, but both fetchers route them to
-`side` (`sources/moxfield.py` `_BOARD_TO_ZONE`, `sources/archidekt.py`
-`_SIDE_CATEGORIES`), with code comments explaining that Cockatrice
-renders the commander pin only from the sideboard. The paragraph
-appears to predate that routing decision. Verify which behavior is
-intended (the code comments read deliberate) and rewrite the README
-paragraph to match.
-
 ### Text parser cannot keep Room names offline
 
 `sources/text.py` strips every `A // B` line to the front half at parse
@@ -296,6 +285,26 @@ in full form stay wrongly stripped. Fixing offline would need a bundled
 layout (or split-name) dictionary similar to `_seed_data.py` — probably
 not worth it until someone actually hits it; logged so the limitation is
 a decision, not an accident.
+
+### No test pins the `reversible_card` printing path
+
+Reversible promo printings of omen cards (e.g. Scavenger Regent, TDM
+#379) are a layout edge the pipeline handles correctly today but only
+by composition — nothing pins the convergence. The design is documented
+in ARCHITECTURE.md ("The reversible-printing edge case"); the gap is
+test coverage only.
+
+- [ ] Test: `cockatrice_name("A // B // A", "reversible_card")` reduces
+      to `"A"`, and a mocked Scryfall canonicalize round-trip restores
+      the full `"A // B"` name.
+
+### User-Agent strings embed stale hardcoded versions
+
+`cod_sync/alt_name.py` sends `cod-sync/0.7` and `cod_sync/sources/_http.py`
+sends `cod-sync/0.1` — both frozen at whatever version the line was
+written. Derive from `cod_sync.__version__` instead so the UA tracks
+releases automatically (one f-string each; mind the lazy-import
+boundaries).
 
 ### Conventional Commits prefix is doc-only
 

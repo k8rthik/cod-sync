@@ -1,4 +1,14 @@
-"""Plain-text decklist parser (MTGA / MTGO style)."""
+"""Plain-text decklist parser (MTGA / MTGO export formats).
+
+Accepts "1 Card", "1x Card", and "1 Card (SET) 123" lines, the MTGO
+"SB:" prefix, and section headers like Deck / Mainboard / Sideboard /
+Commander. Lines starting with // or # are comments.
+
+Plain text carries no layout information, so every "A // B" name is
+reduced to its front face here; the alt_name layer restores full names
+for split-family cards when the network is available (see
+ARCHITECTURE.md, "Card name shaping").
+"""
 
 from __future__ import annotations
 

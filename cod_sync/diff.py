@@ -1,13 +1,10 @@
 """Diff a local Cockatrice deck against a normalized remote decklist.
 
-Card names are compared verbatim. The source fetchers and the alt_name
-layer deliver remote names already in Cockatrice's database form (layout
-aware: front face for true DFCs, full "A // B" for single-face
-multi-part cards like Rooms, aftermath, and adventures), so this layer
-must not second-guess them. A
-shape mismatch against the local file — e.g. a stale front-half Room
-entry or a stale full-form DFC entry written before the layout fixes —
+Card names are compared verbatim: the source fetchers and the alt_name
+layer deliver remote names already in Cockatrice's database form, and
+this layer never reshapes them. A stale name shape in the local file
 surfaces as a remove + add pair, which heals the file on the next sync.
+See ARCHITECTURE.md ("Card name shaping").
 """
 
 from __future__ import annotations

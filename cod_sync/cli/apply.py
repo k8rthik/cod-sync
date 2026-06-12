@@ -1,8 +1,7 @@
 """Pure deck-mutation logic.
 
-No I/O, no prompts, no module-level state. Given a deck and a list of
-diff changes, return the new deck. Tested directly by
-``tests/test_multi_printing.py``.
+No I/O, no prompts, no module-level state: given a deck and a list of
+diff changes, return the new deck.
 """
 
 from __future__ import annotations

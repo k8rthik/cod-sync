@@ -1,16 +1,10 @@
 """Shared keep-alive HTTP session for the deck fetchers.
 
-Two latency concerns live here:
-
-- `requests` costs ~75ms to import — more than half of total CLI startup.
-  Importing it lazily on first network use means invocations that never
-  fetch (--info, --version, --help, declined prompts) don't pay for it.
-- A directory walk fetches many decks from the same host. Sharing one
-  session reuses the TCP+TLS connection across decks instead of paying a
-  fresh handshake per deck.
-
-Thread safety mirrors `alt_name`: the lock guards lazy construction only;
-`requests.Session` is itself safe for concurrent requests.
+`requests` is imported lazily on first network use, and one session is
+shared so a directory walk reuses the TCP+TLS connection across decks —
+see ARCHITECTURE.md ("Latency design") for the numbers. The lock guards
+lazy construction only; `requests.Session` is itself safe for
+concurrent requests.
 """
 
 from __future__ import annotations

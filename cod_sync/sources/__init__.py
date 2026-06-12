@@ -1,18 +1,16 @@
 """Source fetchers: convert a URL or local text file to a normalized decklist.
 
-Normalized form: RemoteDeck(name, zones).
+Normalized form: RemoteDeck(name, zones, tags).
 - name is the deck's title at the source ("" when unknown, e.g. text files)
-- zones is {"main": {card_name: qty, ...}, "side": {card_name: qty, ...}}
-Zone names match Cockatrice's ("main", "side").
+- zones is {"main": {card_name: qty, ...}, "side": {card_name: qty, ...}},
+  matching Cockatrice's zone names
+- tags is the deck-level tag list, when the source exposes one
 
-After the source-specific fetch, every card name is run through
-`alt_name.canonicalize_batch` so flavor-name reskins (Secret Lair etc.) are
-mapped to their Cockatrice-recognized canonical names in one batch lookup.
-
-Name shaping is layout-aware end to end: the fetchers shape multi-face
-names using each card's `layout` (front face for true DFCs, full "A // B"
-for split-style cards like Rooms), and the alt_name Scryfall fallback
-applies the same rule to anything it resolves.
+Card names leave this package in Cockatrice's database form: each
+fetcher shapes multi-face names with the card's layout (`dfc`), and
+`fetch` then maps reskin flavor names to canonical names in one batch
+(`alt_name.canonicalize_batch`). See ARCHITECTURE.md ("Card name
+shaping").
 """
 
 from __future__ import annotations

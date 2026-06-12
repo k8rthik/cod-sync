@@ -1,4 +1,12 @@
-"""Parser and format-preserving writer for Cockatrice .cod files."""
+"""Read and write Cockatrice .cod deck files.
+
+`load` parses a .cod file into immutable `Deck` / `Zone` / `Card`
+dataclasses; `dump` / `save` write a deck back in the exact shape
+Cockatrice itself produces (indentation, attribute order, self-closing
+tags), so loading and saving an unchanged deck is byte-identical.
+Printing pins (`setShortName`, `collectorNumber`, `uuid`) are carried
+through untouched.
+"""
 
 from __future__ import annotations
 

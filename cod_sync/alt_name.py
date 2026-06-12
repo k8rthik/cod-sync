@@ -1,53 +1,24 @@
-"""Reskin / flavor name normalization.
+"""Reskin / flavor-name normalization.
 
 Moxfield and Archidekt return Secret Lair reskins under their printed
 flavor name (e.g. "Unstable Harmonics"), but Cockatrice only recognizes
-the canonical card name ("Rhystic Study"). This module resolves the
-flavor name to the canonical name through three layers:
+the canonical card name ("Rhystic Study"). `canonicalize` and
+`canonicalize_batch` resolve flavor names through three layers,
+cheapest first:
 
-  1. Bundled seed dict (`_seed_data.SEED`) — ~450 known reskins, refreshed
-     at release time via `scripts/refresh_seed.py`. Pure in-memory lookup.
-  2. Disk cache (`~/.cache/cod-sync/alt_names.json`) — per-user, populated
-     as Scryfall resolves new names. Loaded once per process and held in
-     memory for the rest of the run.
-  3. Scryfall `/cards/collection` endpoint — one batched POST per chunk of
-     75 names, sharing a keep-alive HTTP session across chunks. Catches
-     reskins that shipped after the bundled seed was regenerated.
+  1. Bundled seed dict (`_seed_data.SEED`), regenerated at release time
+     by `scripts/refresh_seed.py`.
+  2. Per-user disk cache (`~/.cache/cod-sync/alt_names.json`), loaded
+     once per process.
+  3. Scryfall's `/cards/collection` endpoint, batched 75 names per
+     POST. Set `COD_SYNC_NO_NETWORK=1` to skip this layer.
 
-Identity results (the card is not a reskin) are cached on disk too, so
-every distinct card name is queried at most once across the user's whole
-history — but only definitive answers are cached: a name Scryfall reports
-as not-found is cached as identity, while a transport failure (timeout,
-5xx) falls back to identity for the current run without caching, so one
-network blip can't permanently mask a reskin. Set `COD_SYNC_NO_NETWORK=1`
-to skip step 3 entirely.
+Resolved names are shaped to Cockatrice's database form
+(`dfc.cockatrice_name`) before being cached or returned. Both entry
+points are safe to call from multiple threads.
 
-Name shaping: Scryfall canonicals are shaped to Cockatrice's database
-form using the card's `layout` (`dfc.cockatrice_name`) — transform/modal
-DFCs reduce to the front face; single-face multi-part cards (split,
-Rooms, aftermath, adventures/omens, prepare) keep the full "A // B"
-name. Cached and seed values are stored
-already shaped and trusted verbatim at read time — but only for cache
-files carrying the v2 schema marker. Caches written before layout-aware
-shaping stored raw Scryfall canonicals, so a true DFC could sit there
-under its full "Front // Back" form; loading a marker-less file drops
-every full-form value (those names re-resolve, correctly shaped, on
-next use) and writes the healed file back with the marker.
-
-Performance: the disk cache is read once per process, the seed is never
-copied on the hot path, and the HTTP session is reused across batches.
-A 100-card sync with everything cached returns in well under a
-millisecond; with all entries unknown and network off, well under 10ms.
-A directory walk amortizes Scryfall lookups across decks — the first
-deck pays the round-trip cost, subsequent decks hit the in-memory cache.
-
-Thread safety: `canonicalize` and `canonicalize_batch` may be called from
-multiple threads. A single module-level lock guards lazy initialization of
-the disk cache and HTTP session, all cache mutations, and disk writes; the
-lock is never held during Scryfall HTTP calls, so concurrent batches overlap
-their network I/O. Two threads racing on the same unknown name may each
-query Scryfall once (results are identical; last write wins). Cache reads
-are unlocked and rely on CPython's atomic dict access.
+See ARCHITECTURE.md for the caching policy, the cache schema and its
+v1 → v2 migration, latency characteristics, and the locking rules.
 """
 
 from __future__ import annotations

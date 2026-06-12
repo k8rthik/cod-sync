@@ -111,7 +111,7 @@ Keep the body short — the feature commit explains the change in detail; the bu
 
 - The CLI's public contract surface is documented in `VERSIONING.md` under "The contract we version" — CLI grammar, `.cod` output, cache schema. Changes touching any of those need careful tier classification.
 - The `_seed_data.py` file is a generated artifact from `scripts/refresh_seed.py`. Don't hand-edit it; if a reskin mapping needs to change, fix the generator or the runtime alt_name layer.
-- Multi-face name shaping is layout-aware and layered: source fetchers shape first using the deck API's per-card `layout` (`cod_sync/sources/*.py`, via `dfc.cockatrice_name`), and the alt_name layer shapes Scryfall results the same way (`cod_sync/alt_name.py`). True DFCs (transform/modal_dfc) reduce to the front face; single-face multi-part cards (split/Rooms, aftermath, adventures/omens, prepare) keep the full `A // B` name — that's Cockatrice's own shape for them. The diff layer compares names verbatim and never reshapes; a stale local shape surfaces as a remove + add pair that heals the file on sync.
+- Multi-face name shaping is layout-aware and layered — read `ARCHITECTURE.md` ("Card name shaping") before touching `dfc.py`, the source fetchers, or `alt_name.py`. The short version: true DFCs reduce to the front face, single-face multi-part cards (split/Rooms, aftermath, adventures/omens, prepare) keep the full `A // B` name, the diff layer compares verbatim and never reshapes, and reversible promo printings are a known edge case documented there.
 
 ## Keeping TODO.md live
 

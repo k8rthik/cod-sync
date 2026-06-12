@@ -1,13 +1,10 @@
 """Typed source-fetch errors.
 
-Every leaf maps to a distinct user remedy. The CLI chooses a message
-template per leaf type; the leaf itself carries just enough context
-(URL, HTTP status, retry-after) for that template to be useful.
-
-The module references `requests` only for the `from_http_response`
-helper's type hint (so the import is type-checking-only and free at
-runtime); the helper is the single shared place where HTTP status →
-typed error mapping lives, so both source fetchers route through it.
+Every leaf class maps to a distinct user remedy; the CLI picks a
+message template per type (`cli/formatting.py:_format_source_error`),
+and each leaf carries just enough context (URL, HTTP status,
+retry-after) for its template. `from_http_response` is the single place
+HTTP status codes are classified, shared by all fetchers.
 """
 
 from __future__ import annotations
