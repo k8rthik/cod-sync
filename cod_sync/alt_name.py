@@ -27,7 +27,12 @@ form using the card's `layout` (`dfc.cockatrice_name`) — transform/modal
 DFCs reduce to the front face; single-face multi-part cards (split,
 Rooms, aftermath, adventures/omens, prepare) keep the full "A // B"
 name. Cached and seed values are stored
-already shaped and trusted verbatim at read time.
+already shaped and trusted verbatim at read time — but only for cache
+files carrying the v2 schema marker. Caches written before layout-aware
+shaping stored raw Scryfall canonicals, so a true DFC could sit there
+under its full "Front // Back" form; loading a marker-less file drops
+every full-form value (those names re-resolve, correctly shaped, on
+next use) and writes the healed file back with the marker.
 
 Performance: the disk cache is read once per process, the seed is never
 copied on the hot path, and the HTTP session is reused across batches.
@@ -66,6 +71,12 @@ _API_COLLECTION = "https://api.scryfall.com/cards/collection"
 _USER_AGENT = "cod-sync/0.7 (+https://github.com/k8rthik/cod-sync)"
 _TIMEOUT = 15
 _BATCH_SIZE = 75  # Scryfall's per-request limit.
+
+# Disk-cache schema marker. v2 means every value is already Cockatrice-shaped
+# (front face for true DFCs, full "A // B" only for split-family layouts) and
+# can be trusted verbatim. The key can't collide with a card name.
+_SCHEMA_KEY = "__schema__"
+_SCHEMA_VERSION = "2"
 
 _SEED: dict[str, str] = _seed_data.SEED
 
@@ -222,18 +233,45 @@ def _get_disk_cache() -> dict[str, str]:
 
 
 def _read_disk_cache() -> dict[str, str]:
-    """Read the JSON cache file fresh. Used by the lazy loader."""
+    """Read the JSON cache file fresh, migrating legacy (pre-v2) files.
+
+    Used by the lazy loader; callers must hold `_state_lock` because a
+    migration writes the healed file back.
+    """
+    empty = {_SCHEMA_KEY: _SCHEMA_VERSION}
     path = _cache_path()
     if not path.exists():
-        return {}
+        return empty
     try:
         with path.open("r", encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, json.JSONDecodeError):
-        return {}
+        return empty
     if not isinstance(data, dict):
-        return {}
-    return {k: v for k, v in data.items() if isinstance(k, str) and isinstance(v, str)}
+        return empty
+    cache = {k: v for k, v in data.items() if isinstance(k, str) and isinstance(v, str)}
+    if cache.get(_SCHEMA_KEY) == _SCHEMA_VERSION:
+        return cache
+    migrated = _migrate_legacy_cache(cache)
+    _save_disk_cache(migrated)  # persist so the drop happens once and the marker sticks
+    return migrated
+
+
+def _migrate_legacy_cache(cache: dict[str, str]) -> dict[str, str]:
+    """One-time heal for caches written before layout-aware name shaping.
+
+    Legacy values are raw Scryfall canonicals: a true DFC could be stored as
+    "Fell the Profane" -> "Fell the Profane // Fell Mire", which the read
+    path would now trust verbatim and write into the .cod — a name
+    Cockatrice's database doesn't key. Layouts aren't stored in the cache,
+    so full-form values can't be re-shaped offline; drop them all (the
+    legitimate split-family ones re-resolve through the layout-aware
+    Scryfall path on next use) and stamp the schema marker so the drop
+    never runs against post-migration entries.
+    """
+    migrated = {k: v for k, v in cache.items() if " // " not in v}
+    migrated[_SCHEMA_KEY] = _SCHEMA_VERSION
+    return migrated
 
 
 def _save_disk_cache(cache: dict[str, str]) -> None:

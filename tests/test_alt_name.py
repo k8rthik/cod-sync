@@ -146,7 +146,7 @@ def test_scryfall_resolves_new_reskin(tmp_path, monkeypatch):
     assert out == {"Brand New Reskin": "Older Card"}
 
     cached = json.loads((tmp_path / "cod-sync" / "alt_names.json").read_text())
-    assert cached == {"Brand New Reskin": "Older Card"}
+    assert cached == {"__schema__": "2", "Brand New Reskin": "Older Card"}
 
 
 def test_scryfall_room_canonical_is_kept_and_cached_full(tmp_path, monkeypatch):
@@ -165,7 +165,7 @@ def test_scryfall_room_canonical_is_kept_and_cached_full(tmp_path, monkeypatch):
     assert out == {"Bottomless Pool": "Bottomless Pool // Locker Room"}
 
     cached = json.loads((tmp_path / "cod-sync" / "alt_names.json").read_text())
-    assert cached == {"Bottomless Pool": "Bottomless Pool // Locker Room"}
+    assert cached == {"__schema__": "2", "Bottomless Pool": "Bottomless Pool // Locker Room"}
 
 
 def test_canonicalize_single_passes_through_shaped_names(tmp_path, monkeypatch):
@@ -180,14 +180,102 @@ def test_canonicalize_single_passes_through_shaped_names(tmp_path, monkeypatch):
     assert alt_name.canonicalize("Bottomless Pool") == "Bottomless Pool // Locker Room"
 
 
-def test_disk_cache_full_form_value_is_trusted_verbatim(tmp_path, monkeypatch):
-    """Cache values are written already shaped, so reads trust them as-is.
-    This is what lets a local override map a name to a Room/split canonical."""
+def test_v2_cache_full_form_value_is_trusted_verbatim(tmp_path, monkeypatch):
+    """Values in a schema-marked (v2) cache are written already shaped, so
+    reads trust them as-is. This is what lets a local override map a name
+    to a Room/split canonical."""
     cache_path = tmp_path / "cod-sync" / "alt_names.json"
     cache_path.parent.mkdir(parents=True)
-    cache_path.write_text(json.dumps({"Bottomless Pool": "Bottomless Pool // Locker Room"}))
+    cache_path.write_text(
+        json.dumps({"__schema__": "2", "Bottomless Pool": "Bottomless Pool // Locker Room"})
+    )
     monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
 
+    out = alt_name.canonicalize_batch(["Bottomless Pool"])
+    assert out == {"Bottomless Pool": "Bottomless Pool // Locker Room"}
+
+
+# ----- legacy (pre-v2) cache migration --------------------------------------
+#
+# Caches written before layout-aware shaping stored raw Scryfall canonicals,
+# so a true DFC could be cached as "Fell the Profane" ->
+# "Fell the Profane // Fell Mire". Trusting that verbatim wrote the full name
+# into the .cod — a name Cockatrice's database doesn't key (modal_dfc is
+# stored by front face). Layouts aren't stored in the cache, so legacy
+# full-form values can't be re-shaped offline; they're dropped on load and
+# re-resolve through the layout-aware Scryfall path on next use.
+
+
+def test_legacy_cache_poisoned_dfc_value_is_not_trusted(tmp_path, monkeypatch):
+    """Regression: the poisoned legacy entry must not reach the output —
+    offline, the dropped name falls back to identity (the front face the
+    fetcher already delivered)."""
+    cache_path = tmp_path / "cod-sync" / "alt_names.json"
+    cache_path.parent.mkdir(parents=True)
+    cache_path.write_text(json.dumps({"Fell the Profane": "Fell the Profane // Fell Mire"}))
+    monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
+
+    out = alt_name.canonicalize_batch(["Fell the Profane"])
+    assert out == {"Fell the Profane": "Fell the Profane"}
+
+
+def test_legacy_cache_migration_keeps_reskins_and_stamps_file(tmp_path, monkeypatch):
+    """Migration drops only full-form values; reskin entries survive, and the
+    healed file is written back with the schema marker so the drop runs once."""
+    cache_path = tmp_path / "cod-sync" / "alt_names.json"
+    cache_path.parent.mkdir(parents=True)
+    cache_path.write_text(
+        json.dumps(
+            {
+                "Fell the Profane": "Fell the Profane // Fell Mire",
+                "Unstable Harmonics": "Local Override",
+            }
+        )
+    )
+    monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
+
+    out = alt_name.canonicalize_batch(["Unstable Harmonics"])
+    assert out == {"Unstable Harmonics": "Local Override"}
+
+    cached = json.loads(cache_path.read_text())
+    assert cached == {"__schema__": "2", "Unstable Harmonics": "Local Override"}
+
+
+def test_legacy_dropped_entry_reresolves_through_scryfall(tmp_path, monkeypatch):
+    """Online, a dropped legacy entry re-resolves through the layout-aware
+    lookup and the corrected (shaped) value is cached."""
+    _allow_network(monkeypatch)
+    cache_path = tmp_path / "cod-sync" / "alt_names.json"
+    cache_path.parent.mkdir(parents=True)
+    cache_path.write_text(json.dumps({"Fell the Profane": "Fell the Profane // Fell Mire"}))
+    monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
+
+    monkeypatch.setattr(
+        "cod_sync.alt_name._scryfall_batch_lookup",
+        lambda _n: ({"Fell the Profane": "Fell the Profane"}, set()),  # modal_dfc → front face
+    )
+
+    out = alt_name.canonicalize_batch(["Fell the Profane"])
+    assert out == {"Fell the Profane": "Fell the Profane"}
+
+    cached = json.loads(cache_path.read_text())
+    assert cached == {"__schema__": "2", "Fell the Profane": "Fell the Profane"}
+
+
+def test_migrated_cache_keeps_newly_learned_full_form_values(tmp_path, monkeypatch):
+    """The marker must protect post-migration entries: a legitimately learned
+    Room canonical survives a fresh process load instead of being re-dropped."""
+    _allow_network(monkeypatch)
+    monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        "cod_sync.alt_name._scryfall_batch_lookup",
+        lambda _n: ({"Bottomless Pool": "Bottomless Pool // Locker Room"}, set()),
+    )
+    assert alt_name.canonicalize("Bottomless Pool") == "Bottomless Pool // Locker Room"
+
+    # New process, offline: the cached full-form value must still be trusted.
+    alt_name._reset_state_for_tests()
+    monkeypatch.setenv("COD_SYNC_NO_NETWORK", "1")
     out = alt_name.canonicalize_batch(["Bottomless Pool"])
     assert out == {"Bottomless Pool": "Bottomless Pool // Locker Room"}
 
@@ -206,7 +294,7 @@ def test_scryfall_not_found_caches_identity(tmp_path, monkeypatch):
     assert out == {"Garbage Name": "Garbage Name"}
 
     cached = json.loads((tmp_path / "cod-sync" / "alt_names.json").read_text())
-    assert cached == {"Garbage Name": "Garbage Name"}
+    assert cached == {"__schema__": "2", "Garbage Name": "Garbage Name"}
 
 
 def test_transient_failure_is_not_cached(tmp_path, monkeypatch):
@@ -270,6 +358,7 @@ def test_full_form_not_found_retries_by_front_half(tmp_path, monkeypatch):
 
     cached = json.loads((tmp_path / "cod-sync" / "alt_names.json").read_text())
     assert cached == {
+        "__schema__": "2",
         "Storm the Vault // Vault of Catlacan": "Storm the Vault",
         "Bottomless Pool // Locker Room": "Bottomless Pool // Locker Room",
     }
@@ -287,7 +376,7 @@ def test_full_form_unknown_on_both_passes_caches_identity(tmp_path, monkeypatch)
     assert out == {"Made Up // Card": "Made Up // Card"}
 
     cached = json.loads((tmp_path / "cod-sync" / "alt_names.json").read_text())
-    assert cached == {"Made Up // Card": "Made Up // Card"}
+    assert cached == {"__schema__": "2", "Made Up // Card": "Made Up // Card"}
 
 
 def test_seed_short_circuits_scryfall(tmp_path, monkeypatch):
@@ -327,7 +416,11 @@ def test_scryfall_mixed_seed_and_unknown(tmp_path, monkeypatch):
 
     cached = json.loads((tmp_path / "cod-sync" / "alt_names.json").read_text())
     # Cache holds the LEARNED entries only — seed is not duplicated.
-    assert cached == {"Mystery": "Real Mystery", "Counterspell": "Counterspell"}
+    assert cached == {
+        "__schema__": "2",
+        "Mystery": "Real Mystery",
+        "Counterspell": "Counterspell",
+    }
 
 
 def test_second_sync_hits_cache_not_scryfall(tmp_path, monkeypatch):
@@ -392,6 +485,7 @@ def test_concurrent_canonicalize_is_thread_safe(tmp_path, monkeypatch):
     assert errors == []
     # Cache file must be parseable, consistent JSON — no torn writes.
     cached = json.loads((tmp_path / "cod-sync" / "alt_names.json").read_text())
+    assert cached.pop("__schema__") == "2"
     assert all(cached[k] == k.replace("Skin", "Canon") for k in cached)
 
 

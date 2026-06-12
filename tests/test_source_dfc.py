@@ -8,7 +8,11 @@ face only.
 
 from __future__ import annotations
 
+import json
+
+import cod_sync.sources as sources
 from cod_sync.sources import archidekt, moxfield, text
+from cod_sync.sources.types import RemoteDeck
 
 
 def test_moxfield_strips_dfc_back_in_mainboard():
@@ -253,6 +257,24 @@ Sideboard
     out = text.parse(src)
     assert out["main"] == {"Storm the Vault": 1, "Lightning Bolt": 4}
     assert out["side"] == {"Bala Ged Recovery": 2}
+
+
+def test_canonicalize_does_not_resurrect_dfc_back_face_from_legacy_cache(tmp_path, monkeypatch):
+    """End-to-end regression for the user-reported failure: the Archidekt
+    fetcher correctly reduces a modal_dfc to its front face ("Fell the
+    Profane"), but a cache written before layout-aware shaping mapped that
+    front face back to the raw Scryfall canonical ("Fell the Profane //
+    Fell Mire"), and the canonicalize step wrote the full name into the
+    .cod — a name Cockatrice cannot load. Legacy cache values must never
+    re-expand an already-shaped name."""
+    cache_path = tmp_path / "cod-sync" / "alt_names.json"
+    cache_path.parent.mkdir(parents=True)
+    cache_path.write_text(json.dumps({"Fell the Profane": "Fell the Profane // Fell Mire"}))
+    monkeypatch.setenv("COD_SYNC_CACHE_DIR", str(tmp_path))
+
+    deck = RemoteDeck(name="Deck", zones={"main": {"Fell the Profane": 1}, "side": {}})
+    out = sources._canonicalize(deck)
+    assert out.zones["main"] == {"Fell the Profane": 1}
 
 
 def test_text_parser_merges_dfc_and_front_only_entries():
