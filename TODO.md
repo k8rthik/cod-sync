@@ -39,17 +39,6 @@ create files will lose the count silently.
 
 ## P2 — real value, moderate urgency
 
-### `python -m cod_sync` swallows exit codes
-
-`cod_sync/__main__.py` calls `main()` without wrapping it in
-`sys.exit(...)`, so `python -m cod_sync` exits 0 even when the CLI
-reports an error (the `cod-sync` console script is unaffected — the
-entry-point wrapper propagates the return value). Exit codes are part
-of the documented CLI contract, so a scripted caller invoking via
-`-m` silently loses failure signals. One-line fix; the interesting
-part is adding a test that runs the module form in a subprocess so
-the regression can't return.
-
 ### Walk error-recovery summary
 
 The walk currently aggregates a per-status count at the end (updated,
