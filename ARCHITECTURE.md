@@ -25,8 +25,11 @@ sources/           fetch and parse the remote decklist
 alt_name.py        reskin flavor names → canonical names
         │            seed dict → disk cache → Scryfall batch lookup
         ▼
+cli/sync.py        mapping control: log applied alt-name mappings,
+        │            prompt once per unsettled one (skipped under -y)
+        ▼
 diff.py            verbatim per-zone compare → list of Change objects
-        │
+        │            (cards under cod-sync-ignore: markers filtered out)
         ▼
 cli/prompts.py     interactive per-change approval (skipped under -y)
         │
@@ -60,7 +63,7 @@ it and behave identically once inside.
 | `_seed_data.py` | generated reskin dict — never hand-edit |
 | `diff.py` | local-vs-remote change computation |
 | `cod.py` | `.cod` parse and format-preserving write |
-| `sourcetag.py` | the `cod-sync-source:` marker in `<comments>` |
+| `sourcetag.py` | the `cod-sync-source:` and `cod-sync-ignore:` markers in `<comments>` |
 | `errors.py` | typed source-fetch errors, HTTP status classification |
 
 ## Card name shaping
@@ -157,6 +160,27 @@ full-name misses are retried by their front half; the half resolves the
 card and its layout, and shaping puts the canonical back in the right
 form.
 
+### In-flow mapping control
+
+There is deliberately no standalone override command. Instead, control
+happens where the user sees the problem: every applied mapping is
+logged during sync, and a mapping not yet in the disk cache prompts
+once — accept, keep the printed name, or type a replacement (e.g. for a
+custom-set Cockatrice database). The answer is persisted via
+`alt_name.set_override` into the disk cache, which wins over the seed,
+so a name never prompts twice across any number of decks. `-y` accepts
+and persists proposals silently; `--dry-run` logs without prompting or
+writing. The disk cache is therefore the *settled* layer: every entry
+is either user-confirmed or learned from Scryfall.
+
+The plumbing: `sources._canonicalize` records each applied non-identity
+mapping on `RemoteDeck.renames` (zone, original, canonical, the
+original's own quantity, settled flag), and `cli/sync.py:
+_apply_mapping_control` does the logging/prompting and — when the user
+overrides — un-merges exactly the renamed quantity off the proposed
+canonical, so a deck holding both the reskin and the literal canonical
+stays correct.
+
 ### Cache schema
 
 The cache file is a flat `{name: canonical}` JSON object plus one
@@ -227,9 +251,11 @@ no-op sync produces a byte-identical file. Printing pins
 (`setShortName`, `collectorNumber`, `uuid`) on cards the diff didn't
 touch are carried through untouched; added cards get bare
 `<card number="N" name="..."/>` entries so the user picks art in
-Cockatrice. The only thing cod-sync ever writes into `<comments>` is
-the single `cod-sync-source: <url>` marker line (`sourcetag.py`); user
-text is preserved verbatim.
+Cockatrice. The only things cod-sync ever writes into `<comments>` are
+its own marker lines (`sourcetag.py`): the single `cod-sync-source:
+<url>` line and one `cod-sync-ignore: <name>` line per ignored card.
+User text is preserved verbatim, and deleting an ignore line in
+Cockatrice's comments box is the supported un-ignore path.
 
 This surface is versioned — see VERSIONING.md, "The contract we
 version".

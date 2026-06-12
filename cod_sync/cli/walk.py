@@ -17,7 +17,7 @@ from cod_sync import cod, errors, sources, sourcetag
 from . import _state, routing
 from .formatting import _BOLD, _CYAN, _DIM, _RESET, _format_source_error
 from .prompts import _ask_walk_stored
-from .sync import _sync_deck
+from .sync import _apply_mapping_control, _sync_deck
 
 
 def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool) -> int:
@@ -87,6 +87,8 @@ def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool
             print(f"  fetch failed: {e}", file=sys.stderr)
             stats["errors"] += 1
             continue
+
+        remote = _apply_mapping_control(remote, yes=yes, dry_run=dry_run, indent="  ")
 
         outcome = _sync_deck(
             deck,

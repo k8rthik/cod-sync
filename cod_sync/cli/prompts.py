@@ -57,9 +57,16 @@ def _confirm(prompt: str, *, default: bool, auto_yes: bool) -> bool:
     return default
 
 
-def _review(changes: list[diff.Change], indent: str = "") -> list[diff.Change]:
-    """Walk through changes one by one. Returns the approved subset."""
+def _review(changes: list[diff.Change], indent: str = "") -> tuple[list[diff.Change], list[str]]:
+    """Walk through changes one by one.
+
+    Returns `(approved, ignored)`: the approved subset, and the card names
+    the user marked with `i` — those changes are not applied, and the
+    caller persists the names so future syncs stop proposing them.
+    Quitting (`q`) discards both.
+    """
     approved: list[diff.Change] = []
+    ignored: list[str] = []
     apply_all = False
     for i, c in enumerate(changes, start=1):
         if apply_all:
@@ -68,7 +75,7 @@ def _review(changes: list[diff.Change], indent: str = "") -> list[diff.Change]:
         prompt = (
             f"{indent}  [{i}/{len(changes)}] {_DIM}({c.zone}){_RESET} "
             f"{_color(c)}{c.describe()}{_RESET}  "
-            f"[y/n/a=all/s=skip-rest/q=quit] "
+            f"[y/n/a=all/i=ignore-card/s=skip-rest/q=quit] "
         )
         while True:
             try:
@@ -84,9 +91,41 @@ def _review(changes: list[diff.Change], indent: str = "") -> list[diff.Change]:
                 approved.append(c)
                 apply_all = True
                 break
+            if ans in ("i", "ignore"):
+                ignored.append(c.name)
+                break
             if ans in ("s", "skip"):
-                return approved
+                return approved, ignored
             if ans in ("q", "quit"):
-                return []
-            print(f"{indent}    please answer y, n, a, s, or q")
-    return approved
+                return [], []
+            print(f"{indent}    please answer y, n, a, i, s, or q")
+    return approved, ignored
+
+
+def _review_mapping(original: str, proposed: str, indent: str = "") -> str:
+    """Ask what to do with a newly-seen alt-name mapping.
+
+    Returns the name to use: the proposed canonical (accept), the
+    original printed name (keep), or whatever the user types (edit).
+    EOF accepts the proposal — same default as pressing enter.
+    """
+    prompt = f'{indent}  map "{original}" → "{proposed}"?  [Y=accept/n=keep original/e=edit] '
+    while True:
+        try:
+            ans = input(prompt).strip().lower()
+        except EOFError:
+            return proposed
+        if ans in ("", "y", "yes"):
+            return proposed
+        if ans in ("n", "no"):
+            return original
+        if ans in ("e", "edit"):
+            try:
+                entered = input(f"{indent}    name to use: ").strip()
+            except EOFError:
+                entered = ""
+            if entered:
+                return entered
+            print(f"{indent}    name can't be empty")
+            continue
+        print(f"{indent}    please answer y, n, or e")

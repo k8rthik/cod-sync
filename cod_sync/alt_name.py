@@ -14,8 +14,10 @@ cheapest first:
      POST. Set `COD_SYNC_NO_NETWORK=1` to skip this layer.
 
 Resolved names are shaped to Cockatrice's database form
-(`dfc.cockatrice_name`) before being cached or returned. Both entry
-points are safe to call from multiple threads.
+(`dfc.cockatrice_name`) before being cached or returned. The disk cache
+is the settled layer — entries are user decisions (`set_override`) or
+previously learned answers, and win over the seed. All entry points are
+safe to call from multiple threads.
 
 See ARCHITECTURE.md for the caching policy, the cache schema and its
 v1 → v2 migration, latency characteristics, and the locking rules.
@@ -29,7 +31,7 @@ import sys
 import threading
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from . import _seed_data, dfc
 
@@ -86,10 +88,22 @@ def _reset_state_for_tests() -> None:
 # ----- public API ----------------------------------------------------------
 
 
-def canonicalize_batch(names: Iterable[str]) -> dict[str, str]:
-    """Resolve a batch of card names to their Cockatrice-canonical forms.
+class Resolution(NamedTuple):
+    """One resolved name: the canonical form and whether it's settled.
 
-    Returns a `{input_name: canonical_name}` mapping covering every distinct
+    `settled` is True when the value came from the disk cache — i.e. the
+    user confirmed it or a previous run learned it — so interactive flows
+    know not to re-prompt for it.
+    """
+
+    canonical: str
+    settled: bool
+
+
+def canonicalize_batch_detailed(names: Iterable[str]) -> dict[str, Resolution]:
+    """Resolve a batch of card names, reporting each value's provenance.
+
+    Returns a `{input_name: Resolution}` mapping covering every distinct
     non-empty input. The bundled seed and the in-memory disk cache are both
     O(1) per card. Unknown names hit Scryfall in chunks of 75 over a
     reused HTTP session.
@@ -100,17 +114,19 @@ def canonicalize_batch(names: Iterable[str]) -> dict[str, str]:
 
     disk = _get_disk_cache()
     seed = _SEED  # local reference avoids repeated module attribute lookups
-    out: dict[str, str] = {}
+    out: dict[str, Resolution] = {}
     unknown: list[str] | None = None
 
     for n in distinct:
         # Disk wins over seed so users can override entries locally.
         # Values are stored already Cockatrice-shaped; trust them verbatim.
         v = disk.get(n)
-        if v is None:
-            v = seed.get(n)
         if v is not None:
-            out[n] = v
+            out[n] = Resolution(v, settled=True)
+            continue
+        v = seed.get(n)
+        if v is not None:
+            out[n] = Resolution(v, settled=False)
         else:
             if unknown is None:
                 unknown = []
@@ -121,7 +137,7 @@ def canonicalize_batch(names: Iterable[str]) -> dict[str, str]:
 
     if _network_disabled():
         for n in unknown:
-            out[n] = n
+            out[n] = Resolution(n, settled=False)
         return out
 
     resolved, not_found = _scryfall_batch_lookup(unknown)  # network — lock not held
@@ -147,21 +163,43 @@ def canonicalize_batch(names: Iterable[str]) -> dict[str, str]:
             canonical = resolved.get(n)
             if canonical is not None:
                 # Already shaped by layout in `_absorb_response`.
-                out[n] = canonical
+                out[n] = Resolution(canonical, settled=False)
                 disk[n] = canonical  # in-memory cache wins for the rest of the process
                 learned = True
             elif n in not_found:
                 # Definitive miss: cache identity so we never re-query it.
-                out[n] = n
+                out[n] = Resolution(n, settled=False)
                 disk[n] = n
                 learned = True
             else:
                 # Transport failure: identity for this run only — caching it
                 # would let one network blip permanently mask a reskin.
-                out[n] = n
+                out[n] = Resolution(n, settled=False)
         if learned:
             _save_disk_cache(disk)
     return out
+
+
+def canonicalize_batch(names: Iterable[str]) -> dict[str, str]:
+    """Resolve a batch of card names to their Cockatrice-canonical forms."""
+    return {n: r.canonical for n, r in canonicalize_batch_detailed(names).items()}
+
+
+def set_override(name: str, canonical: str) -> None:
+    """Persist a mapping decision to the disk cache.
+
+    The disk layer wins over the bundled seed, so this is how user
+    decisions stick: accept a mapping (`canonical` as proposed), keep the
+    printed name (`canonical == name`), or substitute any other name.
+    The value is trusted verbatim — it is the caller's override, not ours
+    to reshape.
+    """
+    if not name or not canonical:
+        raise ValueError("name and canonical must both be non-empty")
+    disk = _get_disk_cache()
+    with _state_lock:
+        disk[name] = canonical
+        _save_disk_cache(disk)
 
 
 def canonicalize(name: str) -> str:

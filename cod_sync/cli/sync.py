@@ -43,6 +43,62 @@ class SyncOutcome:
     deckname_changed: bool
     banner_changed: bool = False
     tags_changed: bool = False
+    ignores_changed: bool = False
+
+
+def _apply_mapping_control(
+    remote: sources.RemoteDeck, *, yes: bool, dry_run: bool, indent: str = ""
+) -> sources.RemoteDeck:
+    """Surface applied alt-name mappings and let the user control new ones.
+
+    Every applied mapping is logged. Unsettled ones (not yet in the disk
+    cache) prompt once — accept, keep the original printed name, or type
+    a replacement — and the answer is persisted via `alt_name.set_override`,
+    so the same name never prompts again on any deck. Under --yes the
+    proposal is accepted and persisted without prompting; under --dry-run
+    mappings are logged but nothing is written or asked.
+    """
+    if not remote.renames:
+        return remote
+
+    # One decision per original name, even when it appears in both zones.
+    decisions: dict[str, str] = {}
+    seen: set[str] = set()
+    for r in remote.renames:
+        if r.original in seen:
+            continue
+        seen.add(r.original)
+        _state.say(f'{indent}{_DIM}alt-name: "{r.original}" → "{r.canonical}"{_RESET}')
+        if r.settled or dry_run:
+            continue
+        if yes:
+            alt_name.set_override(r.original, r.canonical)
+            continue
+        final = prompts._review_mapping(r.original, r.canonical, indent=indent)
+        alt_name.set_override(r.original, final)
+        if final != r.canonical:
+            decisions[r.original] = final
+
+    if not decisions:
+        return remote
+
+    # Un-merge precisely: move only each rename's own quantity off the
+    # proposed canonical (which may also hold never-renamed copies).
+    zones: sources.Zones = {zone: dict(cards) for zone, cards in remote.zones.items()}
+    for r in remote.renames:
+        replacement = decisions.get(r.original)
+        if replacement is None:
+            continue
+        zone = zones[r.zone]
+        remaining = zone.get(r.canonical, 0) - r.quantity
+        if remaining > 0:
+            zone[r.canonical] = remaining
+        else:
+            zone.pop(r.canonical, None)
+        zone[replacement] = zone.get(replacement, 0) + r.quantity
+    return sources.RemoteDeck(
+        name=remote.name, zones=zones, tags=remote.tags, renames=remote.renames
+    )
 
 
 def _sync_deck(
@@ -70,6 +126,16 @@ def _sync_deck(
         changes = _import_preview_changes(remote_zones)
     else:
         changes = diff.compute(deck, remote_zones)
+        # Ignored cards (cod-sync-ignore: markers in <comments>) never
+        # enter the review; each suppressed change is still shown so the
+        # user can see what the marker is holding back.
+        ignored_names = sourcetag.get_ignored_names(deck.comments)
+        if ignored_names:
+            suppressed = [c for c in changes if c.name in ignored_names]
+            if suppressed:
+                changes = [c for c in changes if c.name not in ignored_names]
+                for c in suppressed:
+                    _state.say(f"{indent}{_DIM}(ignored) {c.describe()}{_RESET}")
 
     if changes:
         _print_summary(changes, indent=indent)
@@ -99,8 +165,12 @@ def _sync_deck(
                 _state.say(f"{indent}{_DIM}Aborted.{_RESET}")
                 return SyncOutcome("skipped", 0, False, False)
         approved = changes
+        to_ignore: list[str] = []
+    elif changes and not yes:
+        approved, to_ignore = prompts._review(changes, indent=indent)
     else:
-        approved = (changes if yes else prompts._review(changes, indent=indent)) if changes else []
+        approved = changes if yes else []
+        to_ignore = []
 
     final_deck = _apply(deck, approved) if approved else deck
 
@@ -177,6 +247,17 @@ def _sync_deck(
             final_deck = replace(final_deck, tags_xml=cod.tags_list_to_xml(tuple(merged)))
             tags_changed = True
 
+    # Persist `i` answers as cod-sync-ignore: marker lines so future
+    # syncs stop proposing changes for those cards.
+    ignores_changed = False
+    if to_ignore:
+        new_comments = final_deck.comments
+        for name in to_ignore:
+            new_comments = sourcetag.add_ignored_name(new_comments, name)
+        if new_comments != final_deck.comments:
+            final_deck = replace(final_deck, comments=new_comments)
+            ignores_changed = True
+
     if (
         not is_new_file
         and not approved
@@ -184,6 +265,7 @@ def _sync_deck(
         and not deckname_changed
         and not banner_changed
         and not tags_changed
+        and not ignores_changed
     ):
         if not changes:
             _state.say(f"{indent}{_DIM}No differences.{_RESET}")
@@ -215,6 +297,8 @@ def _sync_deck(
         parts.append("banner")
     if tags_changed:
         parts.append("tags")
+    if ignores_changed:
+        parts.append("ignores")
     _state.say(f"{indent}{_BOLD}Wrote {' + '.join(parts)} to {cod_path}{_RESET}")
     return SyncOutcome(
         "updated",
@@ -223,6 +307,7 @@ def _sync_deck(
         deckname_changed,
         banner_changed,
         tags_changed,
+        ignores_changed,
     )
 
 
@@ -274,6 +359,8 @@ def _sync_file(
         except Exception as e:
             print(f"error: failed to fetch {url}: {e}", file=sys.stderr)
             return 2
+
+    remote = _apply_mapping_control(remote, yes=yes, dry_run=dry_run)
 
     _sync_deck(
         deck,

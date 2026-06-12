@@ -51,27 +51,6 @@ back through interleaved output to see which files failed and why.
 - [ ] Test: a walk where two of three decks fail to fetch shows both
       paths and their causes under the summary.
 
-### Local alt-name management surface
-
-The reskin disk cache lives at a fixed path under the user cache
-directory. If Scryfall returns a wrong mapping or a user wants a
-one-off override, the only way to fix it is to hand-edit JSON. Note:
-the cache file now carries a `"__schema__": "2"` marker entry
-(`cod_sync/alt_name.py`) — a file without it is treated as legacy and
-has every full-form `"A // B"` value dropped on load, so any future
-`set` operation must preserve the marker or hand-set overrides with
-full-form values will be silently discarded.
-
-- [ ] Decide whether the surface should be a positional flag
-      (`cod-sync --alt-name SET "Flavor" "Canonical"`) or a separate
-      dunder-prefixed entrypoint. Use `AskUserQuestion` to surface the
-      tension before designing.
-- [ ] Implement `list`, `set`, and `forget` operations against the
-      disk cache.
-- [ ] Add tests covering each operation against a tmpdir cache.
-- [ ] Update README's "Reskin flavor names" paragraph to mention the
-      override surface.
-
 ### More deck sources
 
 The source layer is designed for cheap additions: each source is a

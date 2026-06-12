@@ -22,9 +22,9 @@ from urllib.parse import urlparse
 from .. import alt_name
 from ..errors import InvalidSourceError
 from . import archidekt, moxfield, text
-from .types import RemoteDeck, Zones
+from .types import AppliedRename, RemoteDeck, Zones
 
-__all__ = ["RemoteDeck", "Zones", "fetch"]
+__all__ = ["AppliedRename", "RemoteDeck", "Zones", "fetch"]
 
 
 def fetch(source: str) -> RemoteDeck:
@@ -52,26 +52,29 @@ def _fetch_raw(source: str) -> RemoteDeck:
 def _canonicalize(deck: RemoteDeck) -> RemoteDeck:
     """Rewrite zone names through the alt-name map. Merges colliding entries.
 
-    Single pass over the zones: the rewritten copy is built while checking
-    for changes, and the original deck is returned untouched when every
-    name mapped to itself (the common case)."""
+    Applied (non-identity) mappings are recorded on `renames` so the CLI
+    can log them and prompt for unsettled ones. Single pass over the
+    zones: the rewritten copy is built while checking for changes, and
+    the original deck is returned untouched when every name mapped to
+    itself (the common case)."""
     all_names = {name for cards in deck.zones.values() for name in cards}
     if not all_names:
         return deck
-    mapping = alt_name.canonicalize_batch(all_names)
+    resolutions = alt_name.canonicalize_batch_detailed(all_names)
     new_zones: Zones = {}
-    dirty = False
+    renames: list[AppliedRename] = []
     for zone, cards in deck.zones.items():
         merged: dict[str, int] = {}
         for original, qty in cards.items():
-            canonical = mapping.get(original, original)
-            if canonical != original:
-                dirty = True
+            res = resolutions.get(original)
+            canonical = res.canonical if res is not None else original
+            if canonical != original and res is not None:
+                renames.append(AppliedRename(zone, original, canonical, qty, res.settled))
             merged[canonical] = merged.get(canonical, 0) + qty
         new_zones[zone] = merged
-    if not dirty:
+    if not renames:
         return deck
-    return RemoteDeck(name=deck.name, zones=new_zones, tags=deck.tags)
+    return RemoteDeck(name=deck.name, zones=new_zones, tags=deck.tags, renames=tuple(renames))
 
 
 def _looks_like_url(s: str) -> bool:
