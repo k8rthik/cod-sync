@@ -19,7 +19,7 @@ cli/routing.py     classify the target → walk / sync / import / --info
         │
         ▼
 sources/           fetch and parse the remote decklist
-        │            moxfield.py · archidekt.py · text.py
+        │            moxfield.py · archidekt.py · manabox.py · text.py
         │            names shaped per card layout (dfc.py)
         ▼
 alt_name.py        reskin flavor names → canonical names
@@ -86,8 +86,10 @@ mechanic names.
 
 Shaping is applied at every boundary where a name enters the system:
 
-- **Source fetchers** shape using the per-card `layout` field the deck
-  APIs return (`sources/moxfield.py`, `sources/archidekt.py`).
+- **Source fetchers** shape using the per-card `layout` field the source
+  reports (`sources/moxfield.py`, `sources/archidekt.py`,
+  `sources/manabox.py`). ManaBox reports `layout` as a numeric enum,
+  which the fetcher maps to the Scryfall layout string before shaping.
 - **The alt_name layer** shapes Scryfall lookup results using the
   `layout` in the response, so resolved canonicals land in the same
   form.

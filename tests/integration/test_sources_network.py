@@ -140,6 +140,66 @@ def test_archidekt_quandrix_fetch(archidekt_deck) -> None:
     _assert_precon_invariants(archidekt_deck)
 
 
+# ----- ManaBox --------------------------------------------------------------
+#
+# ManaBox has no JSON API: the share page server-renders the deck into an
+# Astro island's props. These tests exercise that live HTML path, so they
+# catch the format-drift class of breakage the offline fixture cannot —
+# a ManaBox redesign or an Astro serialization change.
+#
+# Two distinct decks (no cross-platform parity available, unlike Quandrix):
+# a Pauper deck that has a sideboard and a maybeboard, and a Commander deck
+# that has a commander and multi-face cards. If either URL dies, replace it
+# with another public ManaBox deck exhibiting the same structure and update
+# the invariants below.
+
+_MANABOX_PAUPER_URL = "https://manabox.app/decks/UAWxVkAsSGWTcIVegCxo5A"
+_MANABOX_COMMANDER_URL = "https://manabox.app/decks/nO-Ir6oERh6_t26lfygooA"
+
+
+@pytest.fixture(scope="session")
+def manabox_pauper_deck() -> RemoteDeck:
+    return sources.fetch(_MANABOX_PAUPER_URL)
+
+
+@pytest.fixture(scope="session")
+def manabox_commander_deck() -> RemoteDeck:
+    return sources.fetch(_MANABOX_COMMANDER_URL)
+
+
+@pytest.mark.network
+def test_manabox_pauper_fetch(manabox_pauper_deck) -> None:
+    deck = manabox_pauper_deck
+    _assert_basic_shape(deck)
+    main, side = deck.zones["main"], deck.zones["side"]
+    # 60-card main, 15-card sideboard; the 4 maybeboard cards are excluded.
+    assert sum(main.values()) == 60, f"expected 60 mainboard cards, got {sum(main.values())}"
+    assert sum(side.values()) == 15, f"expected 15 sideboard cards, got {sum(side.values())}"
+    assert "Champion's Drake" not in main and "Champion's Drake" not in side, (
+        "a maybeboard card leaked into a real zone"
+    )
+
+
+@pytest.mark.network
+def test_manabox_commander_routing_and_dfc(manabox_commander_deck) -> None:
+    deck = manabox_commander_deck
+    _assert_basic_shape(deck)
+    main, side = deck.zones["main"], deck.zones["side"]
+    # The single commander rides in `side`; the rest of the 100-card deck
+    # is mainboard.
+    assert sum(side.values()) == 1, f"expected exactly the commander in side, got {dict(side)!r}"
+    assert sum(main.values()) == 99, f"expected 99 mainboard cards, got {sum(main.values())}"
+    # Layout-aware shaping over the live page: split keeps its full name,
+    # modal_dfc / transform reduce to the front face.
+    assert "Connive // Concoct" in main, "split card should keep its full A // B name"
+    assert "Kazuul's Fury" in main, "modal_dfc should reduce to its front face"
+    assert "Hostile Hostel" in main, "transform card should reduce to its front face"
+    dfc_residue = [name for cards in deck.zones.values() for name in cards if " // " in name]
+    assert dfc_residue == ["Connive // Concoct"], (
+        f"unexpected full-form names (DFC back-face leak?): {dfc_residue}"
+    )
+
+
 @pytest.mark.network
 def test_sources_agree_on_quandrix(moxfield_deck, archidekt_deck) -> None:
     """Cross-source parity check.

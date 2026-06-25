@@ -21,7 +21,7 @@ from urllib.parse import urlparse
 
 from .. import alt_name
 from ..errors import InvalidSourceError
-from . import archidekt, moxfield, text
+from . import archidekt, manabox, moxfield, text
 from .types import AppliedRename, RemoteDeck, Zones
 
 __all__ = ["AppliedRename", "RemoteDeck", "Zones", "fetch"]
@@ -40,6 +40,8 @@ def _fetch_raw(source: str) -> RemoteDeck:
             return moxfield.fetch(source)
         if "archidekt.com" in host:
             return archidekt.fetch(source)
+        if "manabox.app" in host:
+            return manabox.fetch(source)
         raise InvalidSourceError(source, reason=f"unsupported deck site: {host or '(no host)'}")
 
     if os.path.isfile(source):

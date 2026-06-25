@@ -32,9 +32,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="cod-sync",
         description=(
-            "Sync Cockatrice .cod decklists against Moxfield/Archidekt URLs or text "
-            "files. Pass a directory to walk it, a deck file to sync it, or a URL "
-            "to create a new deck from."
+            "Sync Cockatrice .cod decklists against Moxfield/Archidekt/ManaBox URLs "
+            "or text files. Pass a directory to walk it, a deck file to sync it, or a "
+            "URL to create a new deck from."
         ),
     )
     parser.add_argument(
