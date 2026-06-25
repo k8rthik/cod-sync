@@ -69,14 +69,21 @@ def main(argv: list[str] | None = None) -> int:
 
     _state._QUIET = args.quiet
 
-    return _route(
-        args.target,
-        args.url,
-        recursive=args.recursive,
-        yes=args.yes or args.quiet,
-        dry_run=args.dry_run,
-        info=args.info,
-    )
+    try:
+        return _route(
+            args.target,
+            args.url,
+            recursive=args.recursive,
+            yes=args.yes or args.quiet,
+            dry_run=args.dry_run,
+            info=args.info,
+        )
+    except KeyboardInterrupt:
+        # Ctrl-C at any interactive prompt (or mid-fetch) should exit
+        # cleanly, not dump a traceback. Finish the partial prompt line,
+        # then return the conventional 128 + SIGINT(2) status.
+        print("\ninterrupted", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":

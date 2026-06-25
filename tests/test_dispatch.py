@@ -123,3 +123,18 @@ def test_short_flags_pass_through(spies):
     cli.main([URL, "-y", "-n"])
     _, kw = spies["bare"].calls[0]
     assert kw == {"yes": True, "dry_run": True}
+
+
+def test_keyboard_interrupt_exits_cleanly(monkeypatch, capsys):
+    """Ctrl-C at an interactive prompt should exit 130 with a short message,
+    not propagate a traceback out of main()."""
+
+    def interrupt(*_a, **_kw):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("cod_sync.cli.walk._walk_directory", interrupt)
+
+    rc = cli.main([])
+
+    assert rc == 130
+    assert "interrupted" in capsys.readouterr().err
