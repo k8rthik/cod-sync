@@ -18,22 +18,7 @@ Tier guide:
 
 ## P1 — correctness, data-loss, architectural blockers
 
-### Walk `stats` dict silently swallows non-keyed outcomes
-
-`cod_sync/cli/walk.py:37` initializes `stats` with only `updated`,
-`no_change`, `skipped`, `errors`, and line 105 does
-`stats[stat_key] = stats.get(stat_key, 0) + 1` — any future status
-(e.g. `created`) is counted internally but never shown in the hardcoded
-footer at line 107. Today walk forces `is_new_file=False` so `created`
-can't appear, but the shape is fragile: a refactor that lets walk
-create files will lose the count silently.
-
-- [ ] Either drive the footer off the dict keys directly, or
-- [ ] Assert at the top of the loop that `outcome.status` is one of the
-      four expected statuses and raise a clear `RuntimeError` otherwise.
-- [ ] Add a test that monkeypatches `_sync_deck` to return a
-      `SyncOutcome` with status `"created"` and asserts the new
-      contract (either it appears in the footer, or the assert fires).
+_No open P1 items._
 
 ---
 
@@ -317,14 +302,3 @@ under the P2 "Source-canonicalization re-scans" item above — listed
 here as a cross-reference, no new work.
 
 - [ ] Closed by the P2 item; remove this entry when that lands.
-
-### Walk "empty input = skip" prompt accepts undocumented `s`
-
-`cod_sync/cli/walk.py:68-77`: the input prompt advertises
-`empty=skip, q=quit`, but the branching also treats lowercase `s` as
-skip. Not wrong, just inconsistent — either document `s` or drop it.
-
-- [ ] Update the prompt string to include `s=skip` if keeping the
-      shortcut, **or**
-- [ ] Drop the `or entered.lower() == "s"` branch and let users type
-      empty for skip.

@@ -7,7 +7,10 @@ queue and a stubbed `sources.fetch`.
 
 from __future__ import annotations
 
+import pytest
+
 from cod_sync import cod, sourcetag
+from cod_sync.cli.sync import SyncOutcome
 from cod_sync.cli.walk import _walk_directory
 from cod_sync.sources import RemoteDeck
 
@@ -165,6 +168,35 @@ def test_no_stored_url_empty_skips(tmp_path, monkeypatch, capsys):
 
     assert fetched == []
     assert "skipped=1" in capsys.readouterr().out
+
+
+def test_no_stored_url_s_is_treated_as_a_source_not_skip(tmp_path, monkeypatch):
+    # `s` was an undocumented skip shortcut; the prompt only advertises
+    # empty=skip / q=quit, so `s` now flows through as a typed source.
+    _write(tmp_path / "a.cod", deckname="A", main={"Sol Ring": 1})
+    fetched = _stub_fetch(monkeypatch)
+    _queue_input(monkeypatch, ["s"])
+
+    _walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
+
+    assert fetched == ["s"]
+
+
+def test_unexpected_sync_status_raises(tmp_path, monkeypatch):
+    # Walk forces is_new_file=False, so `created` can't legitimately occur.
+    # If a refactor ever lets it through, the summary footer can't report it,
+    # so the loop must fail loudly rather than silently drop the count.
+    _write(tmp_path / "a.cod", deckname="A", url=URL_STORED, main={"Sol Ring": 1})
+    _stub_fetch(monkeypatch)
+    _queue_input(monkeypatch, [""])
+
+    def fake_sync_deck(*_a, **_kw):
+        return SyncOutcome("created", 0, False, False)
+
+    monkeypatch.setattr("cod_sync.cli.walk._sync_deck", fake_sync_deck)
+
+    with pytest.raises(RuntimeError, match="unaccounted sync status 'created'"):
+        _walk_directory(str(tmp_path), recursive=False, yes=False, dry_run=False)
 
 
 def test_no_stored_url_q_quits(tmp_path, monkeypatch):

@@ -70,7 +70,7 @@ def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool
             if entered.lower() == "q":
                 _state.say(f"  {_DIM}quitting walk{_RESET}\n")
                 break
-            if not entered or entered.lower() == "s":
+            if not entered:
                 _state.say(f"  {_DIM}skipped{_RESET}\n")
                 stats["skipped"] += 1
                 continue
@@ -103,8 +103,16 @@ def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool
             indent="  ",
         )
         _state.say()
+        # Walk forces is_new_file=False, so _sync_deck never returns "created";
+        # the footer below only renders these four buckets. Fail loudly rather
+        # than silently swallow a status a future refactor might introduce.
         stat_key = "no_change" if outcome.status == "dry_run" else outcome.status
-        stats[stat_key] = stats.get(stat_key, 0) + 1
+        if stat_key not in stats:
+            raise RuntimeError(
+                f"walk produced unaccounted sync status {outcome.status!r} for {path}; "
+                "the summary footer cannot report it"
+            )
+        stats[stat_key] += 1
 
     _state.say(
         f"{_BOLD}Done.{_RESET} "
