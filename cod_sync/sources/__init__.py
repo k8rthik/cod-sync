@@ -27,21 +27,25 @@ from .types import AppliedRename, RemoteDeck, Zones
 __all__ = ["AppliedRename", "RemoteDeck", "Zones", "fetch"]
 
 
-def fetch(source: str) -> RemoteDeck:
-    """Dispatch based on URL host or file extension, then canonicalize names."""
-    raw = _fetch_raw(source)
+def fetch(source: str, *, include_maybeboard: bool = False) -> RemoteDeck:
+    """Dispatch based on URL host or file extension, then canonicalize names.
+
+    ``include_maybeboard`` folds each source's maybeboard into the sideboard;
+    by default the maybeboard is dropped. Text sources have no maybeboard
+    concept, so the flag is a no-op there."""
+    raw = _fetch_raw(source, include_maybeboard=include_maybeboard)
     return _canonicalize(raw)
 
 
-def _fetch_raw(source: str) -> RemoteDeck:
+def _fetch_raw(source: str, *, include_maybeboard: bool = False) -> RemoteDeck:
     if _looks_like_url(source):
         host = (urlparse(source).hostname or "").lower()
         if "moxfield.com" in host:
-            return moxfield.fetch(source)
+            return moxfield.fetch(source, include_maybeboard=include_maybeboard)
         if "archidekt.com" in host:
-            return archidekt.fetch(source)
+            return archidekt.fetch(source, include_maybeboard=include_maybeboard)
         if "manabox.app" in host:
-            return manabox.fetch(source)
+            return manabox.fetch(source, include_maybeboard=include_maybeboard)
         raise InvalidSourceError(source, reason=f"unsupported deck site: {host or '(no host)'}")
 
     if os.path.isfile(source):

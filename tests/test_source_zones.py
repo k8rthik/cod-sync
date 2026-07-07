@@ -8,7 +8,7 @@ source must respect this when mapping its own structure onto our
 
 from __future__ import annotations
 
-from cod_sync.sources import archidekt, moxfield, text
+from cod_sync.sources import archidekt, manabox, moxfield, text
 
 # ----- Moxfield -------------------------------------------------------------
 
@@ -138,6 +138,81 @@ def test_archidekt_exclusion_follows_primary_category_only():
     out = archidekt._parse(payload)
     assert out["main"] == {"Llanowar Elves": 1}
     assert out["side"] == {}
+
+
+# ----- Maybeboard: dropped by default, folded into side when requested ------
+
+
+def test_moxfield_maybeboard_dropped_by_default():
+    payload = {
+        "boards": {
+            "mainboard": {"cards": {"a": {"quantity": 1, "card": {"name": "Sol Ring"}}}},
+            "maybeboard": {"cards": {"b": {"quantity": 1, "card": {"name": "Mana Crypt"}}}},
+        }
+    }
+    out = moxfield._parse(payload)
+    assert out["main"] == {"Sol Ring": 1}
+    assert out["side"] == {}
+
+
+def test_moxfield_maybeboard_folds_into_side_when_included():
+    payload = {
+        "boards": {
+            "mainboard": {"cards": {"a": {"quantity": 1, "card": {"name": "Sol Ring"}}}},
+            "maybeboard": {"cards": {"b": {"quantity": 1, "card": {"name": "Mana Crypt"}}}},
+        }
+    }
+    out = moxfield._parse(payload, include_maybeboard=True)
+    assert out["main"] == {"Sol Ring": 1}
+    assert out["side"] == {"Mana Crypt": 1}
+
+
+def test_archidekt_maybeboard_folds_into_side_when_included():
+    payload = {
+        "categories": [
+            {"name": "Maybeboard", "includedInDeck": False},
+            {"name": "Creature", "includedInDeck": True},
+        ],
+        "cards": [
+            {
+                "quantity": 1,
+                "categories": ["Creature"],
+                "card": {"oracleCard": {"name": "Llanowar Elves"}},
+            },
+            {
+                "quantity": 1,
+                "categories": ["Maybeboard"],
+                "card": {"oracleCard": {"name": "Gandalf the White"}},
+            },
+        ],
+    }
+    out = archidekt._parse(payload, include_maybeboard=True)
+    assert out["main"] == {"Llanowar Elves": 1}
+    assert out["side"] == {"Gandalf the White": 1}
+
+
+def test_manabox_maybeboard_dropped_by_default():
+    deck = {
+        "cards": [
+            {"boardCategory": 3, "quantity": 1, "name": "Sol Ring"},
+            {"boardCategory": 5, "quantity": 1, "name": "Mana Crypt"},
+        ]
+    }
+    out = manabox._parse(deck)
+    assert out["main"] == {"Sol Ring": 1}
+    assert out["side"] == {}
+
+
+def test_manabox_maybeboard_folds_into_side_when_included():
+    deck = {
+        "cards": [
+            {"boardCategory": 3, "quantity": 1, "name": "Sol Ring"},
+            {"boardCategory": 5, "quantity": 1, "name": "Mana Crypt"},
+        ]
+    }
+    out = manabox._parse(deck, include_maybeboard=True)
+    assert out["main"] == {"Sol Ring": 1}
+    assert out["side"] == {"Mana Crypt": 1}
 
 
 # ----- Text -----------------------------------------------------------------

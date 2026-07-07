@@ -55,7 +55,7 @@ def test_orphaned_reskin_banner_is_repointed_to_canonical(tmp_path, monkeypatch,
     _write_deck(cod_path, banner=RESKIN, main={"Sol Ring": 1, CANONICAL: 1})
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1, CANONICAL: 1}, "side": {}}, name="x"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1, CANONICAL: 1}, "side": {}}, name="x"),
     )
 
     rc = cli.main([str(cod_path), "--yes"])
@@ -74,7 +74,7 @@ def test_orphan_repoint_alone_triggers_save(tmp_path, monkeypatch, capsys):
     _write_deck(cod_path, banner=RESKIN, main={"Sol Ring": 1, CANONICAL: 1})
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1, CANONICAL: 1}, "side": {}}, name="x"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1, CANONICAL: 1}, "side": {}}, name="x"),
     )
 
     rc = cli.main([str(cod_path), "--yes"])
@@ -90,7 +90,7 @@ def test_orphan_repoint_fires_under_walk(tmp_path, monkeypatch, capsys):
     _write_deck(cod_path, banner=RESKIN, main={"Sol Ring": 1, CANONICAL: 1})
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1, CANONICAL: 1}, "side": {}}, name="x"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1, CANONICAL: 1}, "side": {}}, name="x"),
     )
 
     rc = cli.main([str(tmp_path), "--yes"])
@@ -113,7 +113,7 @@ def test_reskin_banner_preserved_when_reskin_still_in_card_list(tmp_path, monkey
     # canonicalize pressure on the local deck).
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1, RESKIN: 1}, "side": {}}, name="x"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1, RESKIN: 1}, "side": {}}, name="x"),
     )
 
     rc = cli.main([str(cod_path), "--yes"])
@@ -129,7 +129,7 @@ def test_canonical_banner_unchanged(tmp_path, monkeypatch, capsys):
     _write_deck(cod_path, banner=CANONICAL, main={"Sol Ring": 1, CANONICAL: 1})
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1, CANONICAL: 1}, "side": {}}, name="x"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1, CANONICAL: 1}, "side": {}}, name="x"),
     )
 
     rc = cli.main([str(cod_path), "--yes"])
@@ -146,7 +146,7 @@ def test_no_banner_is_noop(tmp_path, monkeypatch, capsys):
     _write_deck(cod_path, banner=None, main={"Sol Ring": 1})
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="x"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="x"),
     )
 
     rc = cli.main([str(cod_path), "--yes"])
@@ -163,7 +163,7 @@ def test_banner_in_card_list_makes_no_alt_name_lookup(tmp_path, monkeypatch):
     _write_deck(cod_path, banner="Sol Ring", main={"Sol Ring": 1})
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="x"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="x"),
     )
     calls = [0]
 
@@ -190,7 +190,7 @@ def test_banner_preserved_when_canonical_not_in_card_list(tmp_path, monkeypatch,
     _write_deck(cod_path, banner=RESKIN, main={"Sol Ring": 1})
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="x"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="x"),
     )
 
     rc = cli.main([str(cod_path), "--yes"])

@@ -18,7 +18,7 @@ def test_fetch_canonicalizes_seed_reskin(monkeypatch):
         name="Reskin Test",
         zones={"main": {"Unstable Harmonics": 1, "Sol Ring": 1}, "side": {}},
     )
-    monkeypatch.setattr("cod_sync.sources._fetch_raw", lambda _s: raw)
+    monkeypatch.setattr("cod_sync.sources._fetch_raw", lambda _s, **_kw: raw)
 
     deck = sources.fetch("https://www.moxfield.com/decks/x")
 
@@ -32,7 +32,7 @@ def test_fetch_merges_quantities_when_flavor_and_canonical_collide(monkeypatch):
         name="",
         zones={"main": {"Unstable Harmonics": 1, "Rhystic Study": 2}, "side": {}},
     )
-    monkeypatch.setattr("cod_sync.sources._fetch_raw", lambda _s: raw)
+    monkeypatch.setattr("cod_sync.sources._fetch_raw", lambda _s, **_kw: raw)
 
     deck = sources.fetch("https://www.moxfield.com/decks/x")
 
@@ -44,7 +44,7 @@ def test_fetch_passes_through_normal_cards_unchanged(monkeypatch):
         name="Normal Deck",
         zones={"main": {"Sol Ring": 1, "Counterspell": 4}, "side": {"Negate": 2}},
     )
-    monkeypatch.setattr("cod_sync.sources._fetch_raw", lambda _s: raw)
+    monkeypatch.setattr("cod_sync.sources._fetch_raw", lambda _s, **_kw: raw)
 
     deck = sources.fetch("https://www.moxfield.com/decks/x")
 
@@ -57,7 +57,7 @@ def test_fetch_passes_through_normal_cards_unchanged(monkeypatch):
 def test_fetch_empty_zones_short_circuits(monkeypatch):
     """No card names → no canonicalize call, return deck as-is."""
     raw = RemoteDeck(name="Empty", zones={"main": {}, "side": {}})
-    monkeypatch.setattr("cod_sync.sources._fetch_raw", lambda _s: raw)
+    monkeypatch.setattr("cod_sync.sources._fetch_raw", lambda _s, **_kw: raw)
 
     deck = sources.fetch("https://www.moxfield.com/decks/x")
 

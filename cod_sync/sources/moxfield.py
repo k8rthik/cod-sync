@@ -22,16 +22,18 @@ _DECK_ID_RE = re.compile(r"/decks/([A-Za-z0-9_-]+)")
 # Moxfield board names → Cockatrice zone names.
 # Cockatrice has no commander/companion zone; the convention is to place
 # both in the sideboard so they render with the commander pin. Maybeboard
-# is intentionally ignored.
+# is excluded by default and folded into the sideboard only when the caller
+# passes include_maybeboard (see _parse).
 _BOARD_TO_ZONE = {
     "mainboard": "main",
     "commanders": "side",
     "companions": "side",
     "sideboard": "side",
 }
+_MAYBEBOARD = "maybeboard"
 
 
-def fetch(url: str) -> RemoteDeck:
+def fetch(url: str, *, include_maybeboard: bool = False) -> RemoteDeck:
     import requests  # deferred: only network paths pay the import
 
     public_id = _extract_id(url)
@@ -47,7 +49,11 @@ def fetch(url: str) -> RemoteDeck:
         data = resp.json()
     except ValueError as e:
         raise errors.MalformedResponseError(url, reason="invalid JSON") from e
-    return RemoteDeck(name=_extract_name(data), zones=_parse(data), tags=_extract_tags(data))
+    return RemoteDeck(
+        name=_extract_name(data),
+        zones=_parse(data, include_maybeboard=include_maybeboard),
+        tags=_extract_tags(data),
+    )
 
 
 def _extract_name(data: dict[str, Any]) -> str:
@@ -82,14 +88,21 @@ def _extract_id(url: str) -> str:
     return m.group(1)
 
 
-def _parse(data: dict[str, Any]) -> dict[str, dict[str, int]]:
-    """Parse Moxfield v3 response. Falls back to v2 layout if needed."""
+def _parse(data: dict[str, Any], *, include_maybeboard: bool = False) -> dict[str, dict[str, int]]:
+    """Parse Moxfield v3 response. Falls back to v2 layout if needed.
+
+    With ``include_maybeboard`` the maybeboard is folded into the sideboard;
+    by default it is dropped entirely."""
     out: dict[str, dict[str, int]] = {"main": {}, "side": {}}
+
+    board_to_zone = dict(_BOARD_TO_ZONE)
+    if include_maybeboard:
+        board_to_zone[_MAYBEBOARD] = "side"
 
     boards = data.get("boards")
     if isinstance(boards, dict):
         # v3 layout: {boards: {mainboard: {cards: {<id>: {quantity, card: {name}}}}}}
-        for board_name, zone_name in _BOARD_TO_ZONE.items():
+        for board_name, zone_name in board_to_zone.items():
             board = boards.get(board_name) or {}
             cards = board.get("cards") or {}
             for entry in cards.values():
@@ -97,7 +110,7 @@ def _parse(data: dict[str, Any]) -> dict[str, dict[str, int]]:
         return out
 
     # v2 fallback: boards live as top-level keys.
-    for board_name, zone_name in _BOARD_TO_ZONE.items():
+    for board_name, zone_name in board_to_zone.items():
         cards = data.get(board_name) or {}
         if isinstance(cards, dict):
             for entry in cards.values():

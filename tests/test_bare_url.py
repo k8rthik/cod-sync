@@ -29,7 +29,7 @@ def test_writes_sanitized_title_in_cwd(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote(
+        lambda _src, **_kw: _remote(
             {"main": {"Sol Ring": 1}, "side": {}},
             name="Atraxa Superfriends!",
         ),
@@ -47,7 +47,7 @@ def test_lowercases_and_drops_punctuation(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote(
+        lambda _src, **_kw: _remote(
             {"main": {"Sol Ring": 1}, "side": {}}, name="Storm/the/Vault: A Deck!"
         ),
     )
@@ -61,7 +61,7 @@ def test_falls_back_to_imported_deck_when_title_empty(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name=""),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name=""),
     )
 
     _create_from_bare_url(URL, yes=True, dry_run=False)
@@ -73,7 +73,7 @@ def test_falls_back_when_title_is_all_punctuation(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="!!!???"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="!!!???"),
     )
 
     _create_from_bare_url(URL, yes=True, dry_run=False)
@@ -94,7 +94,7 @@ def test_syncs_existing_target_against_url(tmp_path, monkeypatch, capsys):
 
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote(
+        lambda _src, **_kw: _remote(
             {"main": {"Sol Ring": 1, "Counterspell": 4}, "side": {}},
             name="Atraxa",
         ),
@@ -119,7 +119,7 @@ def test_bare_url_fetches_remote_exactly_once(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     calls = [0]
 
-    def counting_fetch(_src):
+    def counting_fetch(_src, **_kw):
         calls[0] += 1
         return _remote({"main": {"Sol Ring": 1}, "side": {}}, name="One Fetch")
 
@@ -137,7 +137,7 @@ def test_fetch_failure_returns_error(tmp_path, monkeypatch, capsys):
 
     monkeypatch.chdir(tmp_path)
 
-    def boom(_src):
+    def boom(_src, **_kw):
         raise errors.DeckPrivateError(URL)
 
     monkeypatch.setattr("cod_sync.sources.fetch", boom)

@@ -56,7 +56,7 @@ def _default_input(monkeypatch):
 def test_new_file_creates_with_remote_zones(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote(
+        lambda _src, **_kw: _remote(
             {"main": {"Sol Ring": 1, "Arcane Signet": 1}, "side": {}},
             name="Tester",
         ),
@@ -74,7 +74,7 @@ def test_new_file_creates_with_remote_zones(tmp_path, monkeypatch):
 def test_new_file_uses_remote_name_as_deckname(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote(
+        lambda _src, **_kw: _remote(
             {"main": {"Sol Ring": 1}, "side": {}},
             name="Atraxa Superfriends",
         ),
@@ -89,7 +89,7 @@ def test_new_file_uses_remote_name_as_deckname(tmp_path, monkeypatch):
 def test_new_file_falls_back_to_stem_when_remote_unnamed(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name=""),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name=""),
     )
     cod_path = tmp_path / "my-deck.cod"
     _sync_file(str(cod_path), URL, yes=True, dry_run=False)
@@ -100,7 +100,7 @@ def test_new_file_falls_back_to_stem_when_remote_unnamed(tmp_path, monkeypatch):
 def test_new_file_stores_url_marker(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="x"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="x"),
     )
     cod_path = tmp_path / "deck.cod"
     _sync_file(str(cod_path), URL, yes=True, dry_run=False)
@@ -113,7 +113,7 @@ def test_new_file_with_text_source_does_not_store_marker(tmp_path, monkeypatch):
     text_path.write_text("4 Lightning Bolt\n", encoding="utf-8")
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Lightning Bolt": 4}, "side": {}}),
+        lambda _src, **_kw: _remote({"main": {"Lightning Bolt": 4}, "side": {}}),
     )
     cod_path = tmp_path / "fromtxt.cod"
     _sync_file(str(cod_path), str(text_path), yes=True, dry_run=False)
@@ -124,7 +124,7 @@ def test_new_file_with_text_source_does_not_store_marker(tmp_path, monkeypatch):
 def test_new_file_empty_remote_does_not_write(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {}, "side": {}}, name="empty"),
+        lambda _src, **_kw: _remote({"main": {}, "side": {}}, name="empty"),
     )
     cod_path = tmp_path / "empty.cod"
     rc = _sync_file(str(cod_path), URL, yes=True, dry_run=False)
@@ -137,7 +137,7 @@ def test_new_file_empty_remote_does_not_write(tmp_path, monkeypatch, capsys):
 def test_new_file_declined_prompt_does_not_write(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}),
     )
     monkeypatch.setattr("builtins.input", lambda *_a, **_k: "n")
 
@@ -153,7 +153,7 @@ def test_new_file_prompt_counts_cards_across_zones(tmp_path, monkeypatch):
     across main AND side — not the number of unique entries."""
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote(
+        lambda _src, **_kw: _remote(
             {
                 "main": {"Lightning Bolt": 4, "Mountain": 20},
                 "side": {"Pyroblast": 2},
@@ -180,7 +180,7 @@ def test_new_file_prompt_counts_cards_across_zones(tmp_path, monkeypatch):
 def test_new_file_dry_run_does_not_write(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}),
     )
     cod_path = tmp_path / "dry.cod"
     rc = _sync_file(str(cod_path), URL, yes=True, dry_run=True)
@@ -208,7 +208,7 @@ def test_dfc_imported_as_front_face_only(tmp_path, monkeypatch):
     }
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: RemoteDeck(name="DFC deck", zones=moxfield._parse(payload)),
+        lambda _src, **_kw: RemoteDeck(name="DFC deck", zones=moxfield._parse(payload)),
     )
     cod_path = tmp_path / "dfc.cod"
     _sync_file(str(cod_path), URL, yes=True, dry_run=False)
@@ -220,7 +220,7 @@ def test_dfc_imported_as_front_face_only(tmp_path, monkeypatch):
 def test_fetch_failure_returns_error_for_new_file(tmp_path, monkeypatch, capsys):
     from cod_sync import errors
 
-    def boom(_src):
+    def boom(_src, **_kw):
         raise errors.DeckNotFoundError(URL)
 
     monkeypatch.setattr("cod_sync.sources.fetch", boom)
@@ -245,7 +245,7 @@ def test_existing_file_no_url_uses_stored(tmp_path, monkeypatch):
 
     captured = {}
 
-    def fake_fetch(src):
+    def fake_fetch(src, **_kw):
         captured["src"] = src
         return _remote({"main": {"Sol Ring": 1}, "side": {}}, name="Stored")
 
@@ -272,7 +272,7 @@ def test_existing_file_url_same_as_stored_keeps_marker(tmp_path, monkeypatch):
 
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="X"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="X"),
     )
 
     # Track whether _confirm was called — it shouldn't be (no divergence).
@@ -294,7 +294,7 @@ def test_existing_file_url_differs_decline_keeps_old(tmp_path, monkeypatch):
 
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="X"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="X"),
     )
     # Decline every confirm prompt.
     monkeypatch.setattr("cod_sync.cli.prompts._confirm", lambda *a, **kw: False)
@@ -310,7 +310,7 @@ def test_existing_file_url_differs_accept_overwrites(tmp_path, monkeypatch):
 
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="X"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="X"),
     )
     monkeypatch.setattr("cod_sync.cli.prompts._confirm", lambda *a, **kw: True)
 
@@ -325,7 +325,7 @@ def test_existing_file_yes_flag_auto_updates_url(tmp_path, monkeypatch):
 
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="X"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="X"),
     )
     # No _confirm override — the real _confirm should auto-yes under yes=True.
     _sync_file(str(cod_path), URL_OTHER, yes=True, dry_run=False)
@@ -341,7 +341,7 @@ def test_existing_file_remote_name_matches_no_prompt(tmp_path, monkeypatch):
 
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="Same Name"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="Same Name"),
     )
     confirm_calls: list = []
     monkeypatch.setattr(
@@ -363,7 +363,7 @@ def test_existing_file_remote_name_differs_decline_keeps_local(tmp_path, monkeyp
 
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="Remote Name"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="Remote Name"),
     )
     monkeypatch.setattr("cod_sync.cli.prompts._confirm", lambda *a, **kw: False)
 
@@ -380,7 +380,7 @@ def test_existing_file_remote_name_differs_accept_renames(tmp_path, monkeypatch)
 
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="Remote Name"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="Remote Name"),
     )
     monkeypatch.setattr("cod_sync.cli.prompts._confirm", lambda *a, **kw: True)
 
@@ -397,7 +397,7 @@ def test_existing_file_yes_flag_auto_updates_deckname(tmp_path, monkeypatch):
 
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="Remote Name"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="Remote Name"),
     )
 
     _sync_file(str(cod_path), URL, yes=True, dry_run=False)
@@ -413,7 +413,7 @@ def test_existing_file_remote_name_casing_only_diff_no_prompt(tmp_path, monkeypa
 
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="Flip the Bird"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="Flip the Bird"),
     )
     confirm_calls: list = []
     monkeypatch.setattr(
@@ -435,7 +435,7 @@ def test_existing_file_remote_name_whitespace_only_diff_no_prompt(tmp_path, monk
 
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="  Flip the Bird "),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="  Flip the Bird "),
     )
     confirm_calls: list = []
     monkeypatch.setattr(
@@ -457,7 +457,7 @@ def test_existing_file_remote_name_casing_only_diff_under_yes_keeps_local(tmp_pa
 
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="Flip the Bird"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="Flip the Bird"),
     )
 
     _sync_file(str(cod_path), URL, yes=True, dry_run=False)
@@ -472,7 +472,7 @@ def test_existing_file_dry_run_writes_nothing(tmp_path, monkeypatch):
 
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 2}, "side": {}}, name="X"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 2}, "side": {}}, name="X"),
     )
 
     rc = _sync_file(str(cod_path), URL, yes=True, dry_run=True)
@@ -496,7 +496,7 @@ def test_existing_file_unions_remote_tags_into_local(tmp_path, monkeypatch):
 
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote(
+        lambda _src, **_kw: _remote(
             {"main": {"Sol Ring": 1}, "side": {}},
             name="X",
             tags=("Combo", "EDH"),
@@ -520,7 +520,7 @@ def test_existing_file_tag_union_dedupes_case_insensitively(tmp_path, monkeypatc
 
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote(
+        lambda _src, **_kw: _remote(
             {"main": {"Sol Ring": 1}, "side": {}},
             name="X",
             tags=("budget", "Combo"),
@@ -546,7 +546,7 @@ def test_existing_file_tag_subset_does_not_rewrite(tmp_path, monkeypatch):
 
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote(
+        lambda _src, **_kw: _remote(
             {"main": {"Sol Ring": 1}, "side": {}},
             name="X",
             tags=("Combo",),
@@ -570,7 +570,7 @@ def test_existing_file_no_remote_tags_leaves_local_untouched(tmp_path, monkeypat
 
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="X"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="X"),
     )
 
     _sync_file(str(cod_path), URL, yes=True, dry_run=False)
@@ -586,7 +586,7 @@ def test_existing_file_remote_tags_only_still_triggers_write(tmp_path, monkeypat
 
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote(
+        lambda _src, **_kw: _remote(
             {"main": {"Sol Ring": 1}, "side": {}},
             name="X",
             tags=("Budget",),
@@ -601,7 +601,7 @@ def test_existing_file_remote_tags_only_still_triggers_write(tmp_path, monkeypat
 def test_new_file_uses_remote_tags(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote(
+        lambda _src, **_kw: _remote(
             {"main": {"Sol Ring": 1}, "side": {}},
             name="Imported",
             tags=("EDH", "Budget"),
@@ -626,7 +626,7 @@ def test_existing_file_dry_run_does_not_apply_tag_union(tmp_path, monkeypatch):
 
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote(
+        lambda _src, **_kw: _remote(
             {"main": {"Sol Ring": 1}, "side": {}},
             name="X",
             tags=("Combo",),

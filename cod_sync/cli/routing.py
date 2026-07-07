@@ -39,14 +39,27 @@ def _ensure_cod_suffix(name: str) -> str:
 
 
 def _route(
-    target: str | None, url: str | None, *, recursive: bool, yes: bool, dry_run: bool, info: bool
+    target: str | None,
+    url: str | None,
+    *,
+    recursive: bool,
+    yes: bool,
+    dry_run: bool,
+    info: bool,
+    include_maybeboard: bool = False,
 ) -> int:
     """Classify TARGET and dispatch."""
     if info:
         return _route_info(target, url)
 
     if target is None and url is None:
-        return walk._walk_directory(".", recursive=recursive, yes=yes, dry_run=dry_run)
+        return walk._walk_directory(
+            ".",
+            recursive=recursive,
+            yes=yes,
+            dry_run=dry_run,
+            include_maybeboard=include_maybeboard,
+        )
 
     # Bare URL given as the only arg (argparse binds it to `target`).
     if target is not None and _is_url(target):
@@ -56,11 +69,15 @@ def _route(
                 file=sys.stderr,
             )
             return 2
-        return sync._create_from_bare_url(target, yes=yes, dry_run=dry_run)
+        return sync._create_from_bare_url(
+            target, yes=yes, dry_run=dry_run, include_maybeboard=include_maybeboard
+        )
 
     # Defensive: argparse won't actually produce (None, URL); cover it anyway.
     if target is None and url is not None:
-        return sync._create_from_bare_url(url, yes=yes, dry_run=dry_run)
+        return sync._create_from_bare_url(
+            url, yes=yes, dry_run=dry_run, include_maybeboard=include_maybeboard
+        )
 
     assert target is not None  # narrowed by the four returning branches above
 
@@ -73,7 +90,13 @@ def _route(
                 file=sys.stderr,
             )
             return 2
-        return walk._walk_directory(target, recursive=recursive, yes=yes, dry_run=dry_run)
+        return walk._walk_directory(
+            target,
+            recursive=recursive,
+            yes=yes,
+            dry_run=dry_run,
+            include_maybeboard=include_maybeboard,
+        )
 
     # Otherwise: file path. Resolve `foo` → `foo.cod` if present, else treat as new.
     resolved = _resolve_deck_path(target)
@@ -86,7 +109,9 @@ def _route(
         )
         return 2
 
-    return sync._sync_file(cod_path, url, yes=yes, dry_run=dry_run)
+    return sync._sync_file(
+        cod_path, url, yes=yes, dry_run=dry_run, include_maybeboard=include_maybeboard
+    )
 
 
 def _route_info(target: str | None, url: str | None) -> int:

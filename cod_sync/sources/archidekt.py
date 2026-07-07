@@ -25,7 +25,7 @@ _DECK_ID_RE = re.compile(r"/decks/(\d+)")
 _SIDE_CATEGORIES = {"sideboard", "commander", "companion"}
 
 
-def fetch(url: str) -> RemoteDeck:
+def fetch(url: str, *, include_maybeboard: bool = False) -> RemoteDeck:
     import requests  # deferred: only network paths pay the import
 
     deck_id = _extract_id(url)
@@ -41,7 +41,11 @@ def fetch(url: str) -> RemoteDeck:
         data = resp.json()
     except ValueError as e:
         raise errors.MalformedResponseError(url, reason="invalid JSON") from e
-    return RemoteDeck(name=_extract_name(data), zones=_parse(data), tags=_extract_tags(data))
+    return RemoteDeck(
+        name=_extract_name(data),
+        zones=_parse(data, include_maybeboard=include_maybeboard),
+        tags=_extract_tags(data),
+    )
 
 
 def _extract_name(data: dict[str, Any]) -> str:
@@ -79,10 +83,11 @@ def _extract_id(url: str) -> str:
     return m.group(1)
 
 
-def _parse(data: dict[str, Any]) -> dict[str, dict[str, int]]:
+def _parse(data: dict[str, Any], *, include_maybeboard: bool = False) -> dict[str, dict[str, int]]:
     # Categories list tells us which buckets are part of the deck at all,
     # and which (if any) should be treated as sideboard. Maybeboard is
-    # represented by `includedInDeck: false` and must be ignored.
+    # represented by `includedInDeck: false`: dropped by default, or folded
+    # into the sideboard when include_maybeboard is set.
     excluded: set[str] = set()
     for cat in data.get("categories") or []:
         name = (cat.get("name") or "").strip()
@@ -104,12 +109,15 @@ def _parse(data: dict[str, Any]) -> dict[str, dict[str, int]]:
         categories = entry.get("categories") or []
         primary = categories[0].lower() if categories else ""
         if primary in excluded:
-            continue
+            if not include_maybeboard:
+                continue
+            zone = "side"
+        else:
+            zone = "side" if primary in _SIDE_CATEGORIES else "main"
         name = _card_name(entry)
         if not name:
             continue
         name = dfc.cockatrice_name(name, _card_layout(entry))
-        zone = "side" if primary in _SIDE_CATEGORIES else "main"
         out[zone][name] = out[zone].get(name, 0) + qty
     return out
 

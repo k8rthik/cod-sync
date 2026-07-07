@@ -1,0 +1,71 @@
+.TH COD\-SYNC "1" "" "cod\-sync" "cod\-sync manual"
+.SH NAME
+cod\-sync \- Sync a Cockatrice .cod decklist against Moxfield/Archidekt/ManaBox/text
+.SH SYNOPSIS
+.B cod\-sync
+[-h] [--recursive] [--yes] [--dry-run] [--info] [--include-maybeboard] [--quiet] [--version] [target] [url]
+.SH DESCRIPTION
+Sync Cockatrice .cod decklists against Moxfield/Archidekt/ManaBox URLs or text files. Pass a directory to walk it, a deck file to sync it, or a URL to create a new deck from.
+
+.TP
+\fBtarget\fR
+A directory, a deck file, or a URL
+
+.TP
+\fBurl\fR
+Remote URL or path to a plain\-text decklist
+
+.SH OPTIONS
+.TP
+\fB\-\-recursive\fR, \fB\-r\fR
+Recurse into subdirectories (directory targets only)
+
+.TP
+\fB\-\-yes\fR, \fB\-y\fR
+Apply all changes without prompting
+
+.TP
+\fB\-\-dry\-run\fR, \fB\-n\fR
+Print changes and do not modify any file
+
+.TP
+\fB\-\-info\fR, \fB\-i\fR
+Print the deck's contents and metrics instead of syncing
+
+.TP
+\fB\-\-include\-maybeboard\fR, \fB\-m\fR
+Fold the remote maybeboard into the sideboard (default: drop it)
+
+.TP
+\fB\-\-quiet\fR, \fB\-q\fR
+Suppress informational output; implies \-\-yes
+
+.TP
+\fB\-\-version\fR, \fB\-V\fR
+show program's version number and exit
+
+.SH COMMENTS
+target forms:
+  cod\-sync                     walk the current directory, prompting per deck
+  cod\-sync DIR [\-r]            walk a directory (optionally recursing)
+  cod\-sync FILE URL            sync FILE against URL (creates FILE if absent)
+  cod\-sync FILE                sync FILE against the URL stored in its comments
+  cod\-sync URL                 create/sync the default\-named .cod from URL
+  cod\-sync FILE \-\-info         print deck contents and structural metrics
+
+examples:
+  cod\-sync mydeck.cod https://moxfield.com/decks/abc123
+  cod\-sync https://archidekt.com/decks/12345
+  cod\-sync decks/ \-r \-y
+  cod\-sync mydeck.cod \-\-include\-maybeboard
+  cod\-sync mydeck.cod \-\-info
+
+.SH AUTHOR
+.nf
+cod-sync contributors
+.fi
+
+.SH DISTRIBUTION
+The latest version of cod\-sync may be downloaded from
+.UR https://github.com/keerthik/cod\-sync
+.UE

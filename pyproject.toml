@@ -16,6 +16,7 @@ dev = [
     "types-requests",
     "ruff>=0.6",
     "pre-commit>=3.7",
+    "argparse-manpage>=4",
 ]
 
 [project.scripts]
@@ -23,6 +24,11 @@ cod-sync = "cod_sync.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["cod_sync*"]
+
+# Ship the generated man page to <prefix>/share/man/man1. Regenerate with
+# `python scripts/gen_manpage.py`; tests/test_manpage.py guards against drift.
+[tool.setuptools.data-files]
+"share/man/man1" = ["man/cod-sync.1"]
 
 [tool.ruff]
 target-version = "py310"

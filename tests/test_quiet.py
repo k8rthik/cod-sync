@@ -56,7 +56,7 @@ def test_quiet_suppresses_noop_diff_message(tmp_path, monkeypatch, capsys):
     )
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="x"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="x"),
     )
 
     rc = cli.main([str(cod_path), "--quiet"])
@@ -72,7 +72,9 @@ def test_quiet_suppresses_write_summary(tmp_path, monkeypatch, capsys):
     )
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1, "Counterspell": 4}, "side": {}}, name="x"),
+        lambda _src, **_kw: _remote(
+            {"main": {"Sol Ring": 1, "Counterspell": 4}, "side": {}}, name="x"
+        ),
     )
 
     rc = cli.main([str(cod_path), "--quiet"])
@@ -96,7 +98,7 @@ def test_quiet_suppresses_walk_banner_and_stats(tmp_path, monkeypatch, capsys):
     )
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="x"),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1}, "side": {}}, name="x"),
     )
 
     rc = cli.main([str(tmp_path), "--quiet"])
@@ -117,7 +119,7 @@ def test_quiet_preserves_fetch_error_on_stderr(tmp_path, monkeypatch, capsys):
         cod_path, deckname="x", comments=sourcetag.set_source_url("", URL), main={"Sol Ring": 1}
     )
 
-    def boom(_src):
+    def boom(_src, **_kw):
         raise errors.NetworkError(URL, cause="network unreachable")
 
     monkeypatch.setattr("cod_sync.sources.fetch", boom)
@@ -138,7 +140,7 @@ def test_quiet_preserves_walk_fetch_error_on_stderr(tmp_path, monkeypatch, capsy
         cod_path, deckname="x", comments=sourcetag.set_source_url("", URL), main={"Sol Ring": 1}
     )
 
-    def boom(_src):
+    def boom(_src, **_kw):
         raise errors.RateLimitedError(URL)
 
     monkeypatch.setattr("cod_sync.sources.fetch", boom)
@@ -177,7 +179,9 @@ def test_quiet_auto_accepts_changes_without_prompt(tmp_path, monkeypatch, capsys
     )
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1, "Counterspell": 4}, "side": {}}, name="x"),
+        lambda _src, **_kw: _remote(
+            {"main": {"Sol Ring": 1, "Counterspell": 4}, "side": {}}, name="x"
+        ),
     )
 
     def boom(*_a, **_k):

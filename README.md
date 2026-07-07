@@ -39,7 +39,7 @@ A file as the first argument syncs that file. If you pass a URL too, the URL win
 
 A bare deck name without the extension is fine: `cod-sync mydeck` is the same as `cod-sync mydeck.cod`.
 
-`--dry-run` (`-n`) prints the diff and writes nothing. `--yes` (`-y`) auto-accepts every prompt: per-card review, "create new deck?", "update stored URL?", "update deckname?", and the walk's "sync against stored URL?". A directory walk under `-y` runs hands-free when every deck has a stored URL. `--quiet` (`-q`) suppresses informational output and implies `--yes`; errors still print to stderr. `--recursive` (`-r`) only does anything when the target is a directory.
+`--dry-run` (`-n`) prints the diff and writes nothing. `--yes` (`-y`) auto-accepts every prompt: per-card review, "create new deck?", "update stored URL?", "update deckname?", and the walk's "sync against stored URL?". A directory walk under `-y` runs hands-free when every deck has a stored URL. `--quiet` (`-q`) suppresses informational output and implies `--yes`; errors still print to stderr. `--recursive` (`-r`) only does anything when the target is a directory. `--include-maybeboard` (`-m`) folds the remote's maybeboard into the sideboard instead of dropping it (see below).
 
 `--info` (`-i`) is the read-only escape hatch. Pointed at a deck file, it prints the deckname, format, banner card, stored source URL, a per-zone listing (card name plus rolled-up quantity), and counts for total / unique / pinned. Nothing is fetched, nothing is written. It refuses to run against a URL or a directory.
 
@@ -93,7 +93,7 @@ Pins on cards you didn't change (`setShortName`, `collectorNumber`, `uuid`) are 
 
 ## A few things worth knowing
 
-Maybeboards don't enter the diff at all. Cards in Moxfield's maybeboard, or in an Archidekt category flagged `includedInDeck: false`, are filtered out before comparison.
+Maybeboards are dropped by default. Cards in Moxfield's maybeboard, in an Archidekt category flagged `includedInDeck: false`, or in ManaBox's maybeboard don't enter the diff. Pass `--include-maybeboard` (`-m`) to fold them into the `side` zone instead — Cockatrice has no maybeboard, so the sideboard is where they land.
 
 Commanders end up in the `side` zone. Cockatrice has no dedicated commander zone and renders the commander pin only from the sideboard, so both Moxfield's `commanders` board and Archidekt's "Commander" category get routed there. Companions go to `side` for the same reason.
 
@@ -123,6 +123,8 @@ pytest -q
 ```
 
 The codebase is small enough to read in one sitting. `cod_sync/cli/` holds the positional dispatcher, the directory walk, the unified per-deck sync, and the bare-URL flow. `cod.py` is the format-preserving parser and writer. `diff.py` computes the per-zone change list. `dfc.py` shapes multi-face card names to Cockatrice's form. `sourcetag.py` manages the URL marker in `<comments>`. `alt_name.py` maps Secret Lair flavor names to canonical names via a bundled dict (`_seed_data.py`, refreshed by `scripts/refresh_seed.py`). Each source lives in its own file under `sources/`, with the shared `RemoteDeck` type in `sources/types.py`.
+
+A man page is generated from the CLI parser: `man ./man/cod-sync.1` from a checkout, or `man cod-sync` once installed. It's a build artifact — regenerate with `python scripts/gen_manpage.py` after changing any flag or help text (a test fails if it drifts).
 
 [ARCHITECTURE.md](./ARCHITECTURE.md) covers the design: data flow, name shaping, the alt-name cache, latency and threading. [CONTRIBUTING.md](./CONTRIBUTING.md) covers dev setup, tests, and lint. Pull requests welcome — if you change behavior, add a test for it.
 

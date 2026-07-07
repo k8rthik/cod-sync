@@ -44,7 +44,7 @@ def _boom_input(monkeypatch):
 
 def test_fetch_reports_applied_renames(monkeypatch):
     raw = RemoteDeck(name="d", zones={"main": {FLAVOR: 2, "Sol Ring": 1}, "side": {}})
-    monkeypatch.setattr("cod_sync.sources._fetch_raw", lambda _s: raw)
+    monkeypatch.setattr("cod_sync.sources._fetch_raw", lambda _s, **_kw: raw)
 
     deck = sources.fetch("https://www.moxfield.com/decks/x")
 
@@ -54,7 +54,7 @@ def test_fetch_reports_applied_renames(monkeypatch):
 
 def test_fetch_reports_no_renames_for_identity(monkeypatch):
     raw = RemoteDeck(name="d", zones={"main": {"Sol Ring": 1}, "side": {}})
-    monkeypatch.setattr("cod_sync.sources._fetch_raw", lambda _s: raw)
+    monkeypatch.setattr("cod_sync.sources._fetch_raw", lambda _s, **_kw: raw)
 
     deck = sources.fetch("https://www.moxfield.com/decks/x")
 

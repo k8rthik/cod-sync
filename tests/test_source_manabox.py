@@ -203,7 +203,7 @@ def test_unexpected_deck_shape_raises_malformed():
 def test_fetch_dispatches_manabox_host(monkeypatch):
     seen: list[str] = []
 
-    def fake_fetch(url: str) -> RemoteDeck:
+    def fake_fetch(url: str, **_kw: object) -> RemoteDeck:
         seen.append(url)
         return RemoteDeck(name="X", zones={"main": {}, "side": {}})
 
@@ -215,7 +215,7 @@ def test_fetch_dispatches_manabox_host(monkeypatch):
 def test_fetch_dispatches_www_manabox_host(monkeypatch):
     monkeypatch.setattr(
         "cod_sync.sources.manabox.fetch",
-        lambda url: RemoteDeck(name="X", zones={"main": {}, "side": {}}),
+        lambda url, **_kw: RemoteDeck(name="X", zones={"main": {}, "side": {}}),
     )
     # Should not raise the unsupported-site error for the www. subdomain.
     assert sources.fetch("https://www.manabox.app/decks/abc123").name == "X"

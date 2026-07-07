@@ -68,7 +68,7 @@ def test_ignored_names_empty_for_plain_comments():
 def test_review_i_persists_ignore_and_skips_change(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1, "Counterspell": 4}, "side": {}}),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1, "Counterspell": 4}, "side": {}}),
     )
     cod_path = tmp_path / "deck.cod"
     _write_deck(cod_path, main={"Sol Ring": 1})
@@ -86,7 +86,7 @@ def test_review_i_persists_ignore_and_skips_change(tmp_path, monkeypatch):
 def test_ignored_card_suppressed_on_next_sync(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1, "Counterspell": 4}, "side": {}}),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1, "Counterspell": 4}, "side": {}}),
     )
     comments = sourcetag.add_ignored_name(f"cod-sync-source: {URL}", "Counterspell")
     cod_path = tmp_path / "deck.cod"
@@ -107,7 +107,9 @@ def test_ignored_card_suppressed_on_next_sync(tmp_path, monkeypatch):
 def test_review_mixes_ignore_and_accept(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1, "Counterspell": 4, "Negate": 2}, "side": {}}),
+        lambda _src, **_kw: _remote(
+            {"main": {"Sol Ring": 1, "Counterspell": 4, "Negate": 2}, "side": {}}
+        ),
     )
     cod_path = tmp_path / "deck.cod"
     _write_deck(cod_path, main={"Sol Ring": 1})
@@ -127,7 +129,7 @@ def test_review_mixes_ignore_and_accept(tmp_path, monkeypatch):
 def test_yes_mode_never_ignores(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1, "Counterspell": 4}, "side": {}}),
+        lambda _src, **_kw: _remote({"main": {"Sol Ring": 1, "Counterspell": 4}, "side": {}}),
     )
     cod_path = tmp_path / "deck.cod"
     _write_deck(cod_path, main={"Sol Ring": 1})
@@ -144,7 +146,9 @@ def test_yes_mode_never_ignores(tmp_path, monkeypatch):
 def test_review_quit_discards_pending_ignores(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "cod_sync.sources.fetch",
-        lambda _src: _remote({"main": {"Sol Ring": 1, "Counterspell": 4, "Negate": 2}, "side": {}}),
+        lambda _src, **_kw: _remote(
+            {"main": {"Sol Ring": 1, "Counterspell": 4, "Negate": 2}, "side": {}}
+        ),
     )
     cod_path = tmp_path / "deck.cod"
     _write_deck(cod_path, comments=f"cod-sync-source: {URL}", main={"Sol Ring": 1})

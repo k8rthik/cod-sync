@@ -38,7 +38,12 @@ def spies(monkeypatch):
 def test_bare_invocation_walks_cwd(spies):
     rc = cli.main([])
     assert rc == 0
-    assert spies["walk"].calls == [((".",), {"recursive": False, "yes": False, "dry_run": False})]
+    assert spies["walk"].calls == [
+        (
+            (".",),
+            {"recursive": False, "yes": False, "dry_run": False, "include_maybeboard": False},
+        )
+    ]
 
 
 def test_directory_target_walks_that_dir(tmp_path, spies):
@@ -116,13 +121,28 @@ def test_yes_and_dry_run_flags_pass_through(tmp_path, monkeypatch, spies):
 
     cli.main(["foo.cod", URL, "--yes", "--dry-run"])
     _, kw = spies["sync_file"].calls[0]
-    assert kw == {"yes": True, "dry_run": True}
+    assert kw == {"yes": True, "dry_run": True, "include_maybeboard": False}
 
 
 def test_short_flags_pass_through(spies):
     cli.main([URL, "-y", "-n"])
     _, kw = spies["bare"].calls[0]
-    assert kw == {"yes": True, "dry_run": True}
+    assert kw == {"yes": True, "dry_run": True, "include_maybeboard": False}
+
+
+def test_include_maybeboard_flag_passes_through(tmp_path, monkeypatch, spies):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "foo.cod").write_text("<x/>", encoding="utf-8")
+
+    cli.main(["foo.cod", URL, "-m"])
+    _, kw = spies["sync_file"].calls[0]
+    assert kw["include_maybeboard"] is True
+
+
+def test_include_maybeboard_defaults_off_for_bare_url(spies):
+    cli.main([URL])
+    _, kw = spies["bare"].calls[0]
+    assert kw["include_maybeboard"] is False
 
 
 def test_keyboard_interrupt_exits_cleanly(monkeypatch, capsys):

@@ -317,6 +317,7 @@ def _sync_file(
     *,
     yes: bool,
     dry_run: bool,
+    include_maybeboard: bool = False,
     prefetched: sources.RemoteDeck | None = None,
 ) -> int:
     """Sync one deck file. ``prefetched`` carries an already-fetched remote
@@ -352,7 +353,7 @@ def _sync_file(
         # diff appears.
         _state.say(f"{_DIM}fetching {url} ...{_RESET}")
         try:
-            remote = sources.fetch(url)
+            remote = sources.fetch(url, include_maybeboard=include_maybeboard)
         except errors.SourceError as e:
             print(_format_source_error(e), file=sys.stderr)
             return 2
@@ -376,10 +377,12 @@ def _sync_file(
     return 0
 
 
-def _create_from_bare_url(url: str, *, yes: bool, dry_run: bool) -> int:
+def _create_from_bare_url(
+    url: str, *, yes: bool, dry_run: bool, include_maybeboard: bool = False
+) -> int:
     _state.say(f"{_DIM}fetching {url} ...{_RESET}")
     try:
-        remote = sources.fetch(url)
+        remote = sources.fetch(url, include_maybeboard=include_maybeboard)
     except errors.SourceError as e:
         print(_format_source_error(e), file=sys.stderr)
         return 2
@@ -392,4 +395,11 @@ def _create_from_bare_url(url: str, *, yes: bool, dry_run: bool) -> int:
     if target.exists():
         _state.say(f"{_DIM}syncing existing {target}{_RESET}")
 
-    return _sync_file(str(target), url, yes=yes, dry_run=dry_run, prefetched=remote)
+    return _sync_file(
+        str(target),
+        url,
+        yes=yes,
+        dry_run=dry_run,
+        include_maybeboard=include_maybeboard,
+        prefetched=remote,
+    )

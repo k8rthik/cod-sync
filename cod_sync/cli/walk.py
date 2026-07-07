@@ -20,7 +20,9 @@ from .prompts import _ask_walk_stored
 from .sync import _apply_mapping_control, _sync_deck
 
 
-def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool) -> int:
+def _walk_directory(
+    directory: str, *, recursive: bool, yes: bool, dry_run: bool, include_maybeboard: bool = False
+) -> int:
     root = Path(directory)
     if not root.is_dir():
         print(f"error: not a directory: {directory}", file=sys.stderr)
@@ -78,7 +80,7 @@ def _walk_directory(directory: str, *, recursive: bool, yes: bool, dry_run: bool
 
         _state.say(f"  {_DIM}fetching {source} ...{_RESET}")
         try:
-            remote = sources.fetch(source)
+            remote = sources.fetch(source, include_maybeboard=include_maybeboard)
         except errors.SourceError as e:
             print(f"  {_format_source_error(e)}", file=sys.stderr)
             stats["errors"] += 1

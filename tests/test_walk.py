@@ -35,7 +35,7 @@ def _stub_fetch(monkeypatch):
     """Record fetch() calls; return a RemoteDeck that produces zero diff."""
     calls: list[str] = []
 
-    def fake_fetch(src):
+    def fake_fetch(src, **_kw):
         calls.append(src)
         return RemoteDeck(name="", zones={"main": {"Sol Ring": 1}, "side": {}})
 
@@ -223,7 +223,7 @@ def test_no_stored_url_q_quits(tmp_path, monkeypatch):
 def _stub_fetch_named(monkeypatch, remote_name):
     """Like _stub_fetch but the remote deck carries a real name."""
 
-    def fake_fetch(_src):
+    def fake_fetch(_src, **_kw):
         return RemoteDeck(name=remote_name, zones={"main": {"Sol Ring": 1}, "side": {}})
 
     monkeypatch.setattr("cod_sync.sources.fetch", fake_fetch)

@@ -43,8 +43,9 @@ _ISLAND_RE = re.compile(
 # has a single `side` zone and no dedicated command zone, so commanders,
 # oathbreakers, and signature spells all render with the commander pin from
 # the sideboard — the same convention the Moxfield/Archidekt fetchers use.
-# Maybeboard (5) is intentionally absent: it is excluded from the deck,
-# matching Moxfield's maybeboard and Archidekt's `includedInDeck: false`.
+# Maybeboard (5) is intentionally absent: it is excluded by default, matching
+# Moxfield's maybeboard and Archidekt's `includedInDeck: false`, and folded
+# into the sideboard only when the caller passes include_maybeboard (see _parse).
 _MAYBEBOARD = 5
 _BOARD_TO_ZONE = {
     0: "side",  # commander
@@ -82,7 +83,7 @@ _LAYOUT = {
 }
 
 
-def fetch(url: str) -> RemoteDeck:
+def fetch(url: str, *, include_maybeboard: bool = False) -> RemoteDeck:
     import requests  # deferred: only network paths pay the import
 
     try:
@@ -96,7 +97,10 @@ def fetch(url: str) -> RemoteDeck:
     if not resp.ok:
         raise errors.from_http_response(url, resp)
     deck = _extract_deck(url, resp.text)
-    return RemoteDeck(name=(deck.get("name") or "").strip(), zones=_parse(deck))
+    return RemoteDeck(
+        name=(deck.get("name") or "").strip(),
+        zones=_parse(deck, include_maybeboard=include_maybeboard),
+    )
 
 
 def _extract_deck(url: str, page: str) -> dict[str, Any]:
@@ -135,14 +139,20 @@ def _astro_decode(node: Any) -> Any:
     return node
 
 
-def _parse(deck: dict[str, Any]) -> dict[str, dict[str, int]]:
-    """Map a decoded ManaBox deck onto the {main, side} zone model."""
+def _parse(deck: dict[str, Any], *, include_maybeboard: bool = False) -> dict[str, dict[str, int]]:
+    """Map a decoded ManaBox deck onto the {main, side} zone model.
+
+    With ``include_maybeboard`` the maybeboard is folded into the sideboard;
+    by default it is dropped entirely."""
     out: dict[str, dict[str, int]] = {"main": {}, "side": {}}
+    board_to_zone = dict(_BOARD_TO_ZONE)
+    if include_maybeboard:
+        board_to_zone[_MAYBEBOARD] = "side"
     for entry in deck.get("cards") or []:
         if not isinstance(entry, dict):
             continue
         board = entry.get("boardCategory")
-        if board == _MAYBEBOARD:
+        if board == _MAYBEBOARD and not include_maybeboard:
             continue
         qty = int(entry.get("quantity") or 0)
         if qty <= 0:
@@ -154,6 +164,6 @@ def _parse(deck: dict[str, Any]) -> dict[str, dict[str, int]]:
         name = dfc.cockatrice_name(
             raw_name, _LAYOUT.get(layout) if isinstance(layout, int) else None
         )
-        zone = _BOARD_TO_ZONE.get(board, "main") if isinstance(board, int) else "main"
+        zone = board_to_zone.get(board, "main") if isinstance(board, int) else "main"
         out[zone][name] = out[zone].get(name, 0) + qty
     return out

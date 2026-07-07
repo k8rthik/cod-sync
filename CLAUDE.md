@@ -111,6 +111,7 @@ Keep the body short — the feature commit explains the change in detail; the bu
 
 - The CLI's public contract surface is documented in `VERSIONING.md` under "The contract we version" — CLI grammar, `.cod` output, cache schema. Changes touching any of those need careful tier classification.
 - The `_seed_data.py` file is a generated artifact from `scripts/refresh_seed.py`. Don't hand-edit it; if a reskin mapping needs to change, fix the generator or the runtime alt_name layer.
+- `man/cod-sync.1` is a generated artifact from `scripts/gen_manpage.py`, which introspects the argparse parser in `cod_sync/cli`. Don't hand-edit it. After changing any flag, help string, or the parser's description/epilog, run `python scripts/gen_manpage.py` and commit the regenerated page in the same change — `tests/test_manpage.py` fails on drift. The man page deliberately carries no version string and its `.TH` date is blanked, so it changes *only* when flags/help change — a version bump never touches it.
 - Multi-face name shaping is layout-aware and layered — read `ARCHITECTURE.md` ("Card name shaping") before touching `dfc.py`, the source fetchers, or `alt_name.py`. The short version: true DFCs reduce to the front face, single-face multi-part cards (split/Rooms, aftermath, adventures/omens, prepare) keep the full `A // B` name, the diff layer compares verbatim and never reshapes, and reversible promo printings are a known edge case documented there.
 
 ## Keeping TODO.md live

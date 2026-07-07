@@ -76,20 +76,6 @@ mapping versions to user-visible changes.
 - [ ] Backfill entries for the most recent 3-5 releases so the file is
       useful immediately rather than empty.
 
-### Maybeboard handling
-
-Maybeboard contents are silently dropped today (see comments in
-`sources/moxfield.py` and `sources/archidekt.py`). No one has asked for
-them back, but it's an option that exists in both sources and isn't
-represented in our model.
-
-- [ ] Decide whether to surface as a third zone (`maybe`) or via a
-      `--include-maybeboard` flag.
-- [ ] Update `RemoteDeck.zones` and the parsers to carry the new zone
-      conditionally.
-- [ ] Cockatrice doesn't render a maybeboard, so confirm the target
-      behavior end-to-end before shipping.
-
 ### Multi-printing output ordering
 
 When a card with multiple printings gets a quantity increase, the new
